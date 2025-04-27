@@ -32,7 +32,7 @@ function LoginFormComponent() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const searchParams = useSearchParams(); // Get search params
+  const searchParams = useSearchParams(); // Get search params directly
   const { toast } = useToast();
 
   const form = useForm<LoginFormValues>({
@@ -46,7 +46,8 @@ function LoginFormComponent() {
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
     setError(null);
-    const redirectUrl = searchParams.get('redirect'); // Get redirect URL from params
+    // Access redirectUrl directly from searchParams
+    const redirectUrl = searchParams.get('redirect');
 
     try {
       // Sign in using Firebase Authentication

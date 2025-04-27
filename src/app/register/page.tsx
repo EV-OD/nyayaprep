@@ -49,19 +49,21 @@ function RegisterFormComponent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  // Directly read plan from searchParams within the component
+  const planFromUrl = searchParams.get('plan') as SubscriptionPlan | null;
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null); // For image preview
 
   useEffect(() => {
-    const plan = searchParams.get('plan') as SubscriptionPlan;
-    if (plan && allowedPlans.includes(plan)) {
-      setSelectedPlan(plan);
+    if (planFromUrl && allowedPlans.includes(planFromUrl)) {
+      setSelectedPlan(planFromUrl);
     } else {
       // Redirect if plan is missing or invalid
       toast({ variant: 'destructive', title: 'Invalid Plan', description: 'Please select a subscription plan first.' });
       router.replace('/pricing'); // Redirect to pricing page
     }
-  }, [searchParams, router, toast]);
+    // Depend on planFromUrl directly
+  }, [planFromUrl, router, toast]);
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(formSchema),
@@ -166,6 +168,9 @@ function RegisterFormComponent() {
              <div className="flex flex-1 items-center justify-center bg-gradient-to-br from-background to-muted/50 p-4">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
              </div>
+             <footer className="py-4 text-center text-muted-foreground text-sm bg-background border-t">
+                NyayaPrep &copy; {new Date().getFullYear()}
+             </footer>
           </div>
       );
    }
@@ -316,6 +321,9 @@ function RegisterFormComponent() {
             </Form>
           </Card>
        </main>
+        <footer className="py-4 text-center text-muted-foreground text-sm bg-background border-t">
+          NyayaPrep &copy; {new Date().getFullYear()}
+        </footer>
     </div>
   );
 }
@@ -327,6 +335,9 @@ export default function RegisterPage() {
             <div className="flex flex-col min-h-screen">
                <PublicNavbar />
                <div className="flex flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                <footer className="py-4 text-center text-muted-foreground text-sm bg-background border-t">
+                  NyayaPrep &copy; {new Date().getFullYear()}
+                </footer>
             </div>
         }>
             <RegisterFormComponent />
