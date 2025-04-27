@@ -17,7 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, LogIn } from 'lucide-react';
 import { auth } from '@/lib/firebase/config';
 import { signInWithEmailAndPassword, AuthError } from 'firebase/auth';
-import { getUserProfile } from '@/lib/firebase/firestore'; // Import Firestore function to check role
+import { getUserProfile, handleSubscriptionExpiry } from '@/lib/firebase/firestore'; // Import Firestore function to check role and handle expiry
 import { PublicNavbar } from '@/components/layout/public-navbar'; // Import PublicNavbar
 
 const formSchema = z.object({
@@ -53,7 +53,22 @@ function LoginFormComponent() {
       const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
 
-      // Check user role from Firestore
+      // Check for subscription expiry immediately after login
+      const expired = await handleSubscriptionExpiry(user.uid);
+      if (expired) {
+          toast({ variant: "destructive", title: "Subscription Expired", description: "Your subscription has expired. Please renew." });
+          // Fetch profile again to get the potentially updated (non-validated) status
+          const updatedProfile = await getUserProfile(user.uid);
+          // Redirect based on expired status (likely back to pricing or dashboard showing expired state)
+          if (updatedProfile?.role === 'admin') {
+               router.push('/admin/dashboard'); // Admins might still access dashboard
+          } else {
+              router.push('/dashboard'); // Regular users go to dashboard to see expired status
+          }
+          return; // Stop further execution if expired
+      }
+
+      // If not expired, proceed to check role and redirect
       const userProfile = await getUserProfile(user.uid);
 
       toast({

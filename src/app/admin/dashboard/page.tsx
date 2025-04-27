@@ -4,10 +4,12 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation'; // Import useRouter
-import { PlusCircle, Edit, Trash2, Filter, Search, Loader2, Star, CheckCircle, AlertTriangle, HelpCircle, Send, Clock, Check, X, Bell, Users, ListChecks, FileText, Languages, Settings } from 'lucide-react'; // Added necessary icons
+import { PlusCircle, Edit, Trash2, Filter, Search, Loader2, Star, CheckCircle, AlertTriangle, HelpCircle, Send, Clock, Check, X, Bell, Users, ListChecks, FileText, Languages, Settings, CalendarPlus, CalendarOff, CalendarCheck } from 'lucide-react'; // Added necessary icons including Calendar
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Calendar } from "@/components/ui/calendar" // Import Calendar
+import { Popover, PopoverContent, PopoverTrigger, } from "@/components/ui/popover" // Import Popover
 import {
   Table,
   TableBody,
@@ -57,7 +59,7 @@ import {
     // deleteMultipleMcqs, // No longer needed here
 } from '@/lib/firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
-import { format } from 'date-fns';
+import { format, addWeeks, parseISO, formatISO } from 'date-fns'; // Added addWeeks, parseISO, formatISO
 import { auth } from '@/lib/firebase/config';
 
 export default function AdminDashboardPage() {
@@ -75,6 +77,12 @@ export default function AdminDashboardPage() {
   const [selectedQuestionToAnswer, setSelectedQuestionToAnswer] = React.useState<TeacherQuestion | null>(null);
   const [answerText, setAnswerText] = React.useState('');
   const [isSubmittingAnswer, setIsSubmittingAnswer] = React.useState(false);
+
+  // State for validation dialog
+  const [validationDialogOpen, setValidationDialogOpen] = React.useState(false);
+  const [userToValidate, setUserToValidate] = React.useState<UserProfile | null>(null);
+  const [validationDuration, setValidationDuration] = React.useState(1); // Default 1 week
+  const [isUpdatingValidation, setIsUpdatingValidation] = React.useState(false);
 
   const { toast } = useToast();
   const router = useRouter();
@@ -143,6 +151,8 @@ export default function AdminDashboardPage() {
     // Fetch data based on the active tab
     if (activeTab === 'overview') {
         fetchMcqCount(); // Fetch MCQ count for overview
+        fetchUsersData(); // Also fetch users for overview count
+        fetchTeacherQuestionsData(); // Also fetch pending questions count for overview
     } else if (activeTab === 'users') {
         fetchUsersData(); // Fetch users when tab is active
     } else if (activeTab === 'teacherQuestions') {
@@ -157,33 +167,53 @@ export default function AdminDashboardPage() {
       toast({ title: "Action Not Implemented", description: "User deletion functionality is not yet available." });
   };
 
-  const handleToggleValidation = async (uid: string, currentStatus: boolean) => {
-       const newStatus = !currentStatus;
-       setUsers(prevUsers =>
-           prevUsers.map(user =>
-               user.uid === uid ? { ...user, validated: newStatus } : user
-           )
-       );
+  // Open dialog to handle validation/expiry
+   const handleOpenValidationDialog = (user: UserProfile) => {
+       setUserToValidate(user);
+       setValidationDuration(1); // Reset duration
+       setValidationDialogOpen(true);
+   };
+
+   // Handle confirming the validation status change
+   const handleConfirmValidation = async () => {
+       if (!userToValidate) return;
+       setIsUpdatingValidation(true);
+
+       const newStatus = !userToValidate.validated;
+       let newExpiryDate: Timestamp | null = null;
+
+       if (newStatus) { // If validating
+           const now = new Date();
+           newExpiryDate = Timestamp.fromDate(addWeeks(now, validationDuration));
+       } else { // If invalidating (setting to pending/expired)
+           newExpiryDate = null; // Remove expiry date when invalidating
+       }
+
        try {
-           await setUserValidationStatus(uid, newStatus);
+           await setUserValidationStatus(userToValidate.uid, newStatus, newExpiryDate);
            toast({
                title: "Validation Status Updated",
-               description: `User validation set to ${newStatus ? 'Validated' : 'Not Validated'}.`,
+               description: `User ${userToValidate.name} set to ${newStatus ? 'Validated' : 'Pending/Expired'}.${newStatus ? ` Subscription expires on ${format(newExpiryDate!.toDate(), 'PPP')}.` : ''}`,
            });
-       } catch (error) {
-           console.error("Failed to update validation status:", error);
-            setUsers(prevUsers =>
+           // Update local state
+           setUsers(prevUsers =>
                prevUsers.map(user =>
-                   user.uid === uid ? { ...user, validated: currentStatus } : user
+                   user.uid === userToValidate.uid ? { ...user, validated: newStatus, expiryDate: newExpiryDate } : user
                )
            );
+           setValidationDialogOpen(false);
+       } catch (error) {
+           console.error("Failed to update validation status:", error);
            toast({
                variant: "destructive",
                title: "Update Failed",
                description: "Could not update user validation status.",
            });
+       } finally {
+           setIsUpdatingValidation(false);
        }
    };
+
 
   // --- Teacher Question Handlers ---
    const handleOpenAnswerDialog = (question: TeacherQuestion) => {
@@ -258,20 +288,34 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const getValidationStatus = (validated: boolean, subscription?: SubscriptionPlan) => {
-    if (subscription === 'free') {
-        return <Badge variant="secondary" className="bg-transparent text-muted-foreground text-xs">N/A</Badge>;
-    }
-    return validated ? (
-         <Badge variant="default" className="bg-green-500 hover:bg-green-600 text-white text-xs">
-            <CheckCircle className="mr-1 h-3 w-3" /> Validated
-         </Badge>
-     ) : (
-         <Badge variant="destructive" className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs">
-              <AlertTriangle className="mr-1 h-3 w-3" /> Pending
-          </Badge>
-     );
+  const getValidationStatusBadge = (user: UserProfile) => {
+      if (user.subscription === 'free') {
+          return <Badge variant="secondary" className="bg-transparent text-muted-foreground text-xs">N/A (Free)</Badge>;
+      }
+
+      const isExpired = user.expiryDate && user.expiryDate.toDate() < new Date();
+
+      if (isExpired) {
+          return (
+              <Badge variant="destructive" className="bg-red-500 hover:bg-red-600 text-white text-xs">
+                  <CalendarOff className="mr-1 h-3 w-3" /> Expired
+              </Badge>
+          );
+      } else if (user.validated) {
+          return (
+              <Badge variant="default" className="bg-green-500 hover:bg-green-600 text-white text-xs">
+                  <CalendarCheck className="mr-1 h-3 w-3" /> Validated
+              </Badge>
+          );
+      } else {
+          return (
+              <Badge variant="destructive" className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs">
+                  <AlertTriangle className="mr-1 h-3 w-3" /> Pending
+              </Badge>
+          );
+      }
   };
+
 
   const getStatusBadge = (status: TeacherQuestion['status']) => {
      switch (status) {
@@ -351,8 +395,6 @@ export default function AdminDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   {isLoadingMCQs ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold">{mcqs.length}</div>}
-                   {/* Add dynamic change text later if needed */}
-                   {/* <p className="text-xs text-muted-foreground">+10 from last week</p> */}
                 </CardContent>
               </Card>
               <Card>
@@ -400,7 +442,7 @@ export default function AdminDashboardPage() {
                <Card>
                  <CardContent className="pt-6">
                    <p className="text-muted-foreground">Activity log (e.g., new users, answered questions) will be displayed here...</p>
-                   {/* Example items */}
+                    {/* Example items */}
                     <div className="flex justify-between items-center py-2 border-b last:border-b-0">
                        <p className="text-sm">User 'test@example.com' registered.</p>
                        <p className="text-xs text-muted-foreground">1 hour ago</p>
@@ -425,6 +467,7 @@ export default function AdminDashboardPage() {
                       <TableHead>Email</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Plan</TableHead>
+                      <TableHead>Expiry Date</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right w-[150px]">Actions</TableHead>
                     </TableRow>
@@ -444,40 +487,22 @@ export default function AdminDashboardPage() {
                                 {user.subscription || 'Free'}
                               </Badge>
                             </TableCell>
-                            <TableCell>{getValidationStatus(user.validated, user.subscription)}</TableCell>
+                             <TableCell>
+                                {user.expiryDate ? format(user.expiryDate.toDate(), 'PP') : user.subscription !== 'free' ? 'Not Set' : 'N/A'}
+                             </TableCell>
+                            <TableCell>{getValidationStatusBadge(user)}</TableCell>
                             <TableCell className="text-right">
                                 <div className="flex gap-1 justify-end items-center">
                                   {user.subscription !== 'free' && (
-                                    <AlertDialog>
-                                      <AlertDialogTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className={cn("h-8 w-8", user.validated ? "text-green-600 hover:bg-green-100" : "text-yellow-600 hover:bg-yellow-100")}
-                                          aria-label={user.validated ? "Mark as Pending" : "Mark as Validated"}
-                                        >
-                                          {user.validated ? <CheckCircle className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
-                                        </Button>
-                                      </AlertDialogTrigger>
-                                      <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                          <AlertDialogTitle>Confirm Status Change</AlertDialogTitle>
-                                          <AlertDialogDescription>
-                                            Are you sure you want to change the validation status for user "{user.name}" to
-                                            <strong className="ml-1">{user.validated ? 'Pending' : 'Validated'}</strong>?
-                                          </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                          <AlertDialogAction
-                                            onClick={() => handleToggleValidation(user.uid, user.validated)}
-                                            className={user.validated ? "bg-yellow-500 hover:bg-yellow-600" : "bg-green-500 hover:bg-green-600"}
-                                          >
-                                            {user.validated ? 'Set to Pending' : 'Set to Validated'}
-                                          </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                      </AlertDialogContent>
-                                    </AlertDialog>
+                                     <Button
+                                       variant="ghost"
+                                       size="icon"
+                                       className={cn("h-8 w-8", user.validated ? "text-green-600 hover:bg-green-100" : "text-yellow-600 hover:bg-yellow-100")}
+                                       onClick={() => handleOpenValidationDialog(user)}
+                                       aria-label={user.validated ? "Manage Validation / Expiry" : "Validate User"}
+                                     >
+                                        {user.validated ? <CalendarCheck className="h-4 w-4" /> : <CalendarPlus className="h-4 w-4" />}
+                                     </Button>
                                   )}
                                   {/* Placeholder for Edit User */}
                                    <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="View/Edit User" disabled>
@@ -512,7 +537,7 @@ export default function AdminDashboardPage() {
                       })
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                        <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                           {users.length === 0 ? "No users found." : "No users found matching your search criteria."}
                         </TableCell>
                       </TableRow>
@@ -623,6 +648,61 @@ export default function AdminDashboardPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+         {/* Validation Dialog */}
+         <Dialog open={validationDialogOpen} onOpenChange={setValidationDialogOpen}>
+             <DialogContent className="sm:max-w-[450px]">
+                 <DialogHeader>
+                      <DialogTitle>Manage User Validation</DialogTitle>
+                      <DialogDescription>
+                          {userToValidate?.validated ? 'Invalidate' : 'Validate'} user "{userToValidate?.name}" ({userToValidate?.subscription} plan).
+                          {userToValidate?.validated ? ' This will mark their subscription as inactive/expired.' : ' Set the subscription duration.'}
+                      </DialogDescription>
+                 </DialogHeader>
+                  <div className="py-4 space-y-4">
+                      {!userToValidate?.validated && (
+                          <div className="space-y-2">
+                               <label htmlFor="duration-weeks" className="text-sm font-medium">Set Duration (Weeks)</label>
+                               <Input
+                                   id="duration-weeks"
+                                   type="number"
+                                   min="1"
+                                   value={validationDuration}
+                                   onChange={(e) => setValidationDuration(parseInt(e.target.value) || 1)}
+                                   disabled={isUpdatingValidation}
+                               />
+                                <p className="text-xs text-muted-foreground">
+                                     Expiry Date will be set to: {format(addWeeks(new Date(), validationDuration), 'PPP')}
+                                 </p>
+                          </div>
+                      )}
+                       <p className="text-sm text-muted-foreground">
+                           {userToValidate?.validated
+                               ? 'Setting status to Pending/Expired will remove their access until re-validated.'
+                               : 'Setting status to Validated will activate their subscription for the specified duration.'
+                           }
+                       </p>
+                  </div>
+                 <DialogFooter>
+                     <DialogClose asChild>
+                         <Button type="button" variant="outline" disabled={isUpdatingValidation}>
+                             Cancel
+                         </Button>
+                     </DialogClose>
+                     <Button
+                        type="button"
+                        onClick={handleConfirmValidation}
+                        disabled={isUpdatingValidation || (!userToValidate?.validated && validationDuration < 1)}
+                        className={userToValidate?.validated ? "bg-yellow-500 hover:bg-yellow-600" : "bg-green-500 hover:bg-green-600"}
+                    >
+                        {isUpdatingValidation ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                         {userToValidate?.validated ? 'Set to Pending/Expired' : 'Validate & Set Expiry'}
+                     </Button>
+                 </DialogFooter>
+             </DialogContent>
+         </Dialog>
+
+
       </main>
     </div>
   );
@@ -640,7 +720,8 @@ function UserTableSkeleton() {
                     <TableHead><Skeleton className="h-4 w-40" /></TableHead>
                     <TableHead><Skeleton className="h-4 w-24" /></TableHead>
                     <TableHead><Skeleton className="h-4 w-20" /></TableHead>
-                    <TableHead><Skeleton className="h-4 w-20" /></TableHead>
+                    <TableHead><Skeleton className="h-4 w-24" /></TableHead> {/* Expiry Date */}
+                    <TableHead><Skeleton className="h-4 w-20" /></TableHead> {/* Status */}
                     <TableHead className="text-right w-[150px]"><Skeleton className="h-4 w-16 ml-auto" /></TableHead>
                 </TableRow>
             </TableHeader>
@@ -651,7 +732,8 @@ function UserTableSkeleton() {
                         <TableCell><Skeleton className="h-4 w-48" /></TableCell>
                          <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                         <TableCell><Skeleton className="h-6 w-16 rounded-full" /></TableCell>
-                        <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell> {/* Expiry Date */}
+                        <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell> {/* Status */}
                         <TableCell className="text-right">
                             <div className="flex gap-1 justify-end">
                                 <Skeleton className="h-8 w-8 rounded-md" />
