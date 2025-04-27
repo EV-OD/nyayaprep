@@ -58,7 +58,14 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
   try {
     const docSnap = await getDoc(userRef);
     if (docSnap.exists()) {
-      return docSnap.data() as UserProfile;
+      // Ensure createdAt is converted if necessary (it should be a Timestamp from Firestore)
+      const data = docSnap.data();
+       // Add type assertion for safety
+      const profile: UserProfile = {
+          ...data,
+          createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now() // Handle potential mismatch if needed
+      } as UserProfile;
+      return profile;
     } else {
       console.log('No such user profile document!');
       return null;
@@ -73,14 +80,15 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
  * Saves a user's quiz result to Firestore.
  * @param resultData The QuizResult data (excluding id).
  */
-export const saveQuizResult = async (resultData: Omit<QuizResult, 'id'>): Promise<string> => {
-   // Ensure completedAt is a Firestore Timestamp
-   const dataToSave: Omit<QuizResult, 'id'> & { completedAt: Timestamp } = {
+export const saveQuizResult = async (resultData: Omit<QuizResult, 'id' | 'completedAt'>): Promise<string> => {
+   // Use serverTimestamp() to let Firestore set the time upon saving
+   const dataToSave = {
       ...resultData,
-      completedAt: serverTimestamp(), // Use server timestamp for consistency
+      completedAt: serverTimestamp(),
    };
 
    try {
+      // Explicitly type the data being added if necessary, though Firestore often infers well
       const docRef = await addDoc(quizResultsCollection, dataToSave);
       console.log('Quiz result saved with ID: ', docRef.id);
       return docRef.id;
@@ -92,6 +100,15 @@ export const saveQuizResult = async (resultData: Omit<QuizResult, 'id'>): Promis
 
 /**
  * Fetches the quiz results for a specific user.
+ *
+ * IMPORTANT: This query requires a composite index in Firestore.
+ * If you encounter an error mentioning "The query requires an index",
+ * you need to create it in your Firebase console. The required index is typically:
+ * Collection: quizResults
+ * Fields:
+ *   1. userId (Ascending)
+ *   2. completedAt (Descending)
+ *
  * @param userId The UID of the user.
  * @param count The maximum number of results to fetch (optional).
  * @returns An array of QuizResult objects.
@@ -113,11 +130,23 @@ export const getUserQuizResults = async (userId: string, count?: number): Promis
     const querySnapshot = await getDocs(q);
     const results: QuizResult[] = [];
     querySnapshot.forEach((doc) => {
-      results.push({ id: doc.id, ...doc.data() } as QuizResult);
+        const data = doc.data();
+        // Ensure completedAt is handled correctly as a Timestamp
+        const result: QuizResult = {
+          id: doc.id,
+          ...data,
+          // Add type assertion and potentially a default if needed, though serverTimestamp should ensure it's a Timestamp
+          completedAt: data.completedAt instanceof Timestamp ? data.completedAt : Timestamp.now()
+        } as QuizResult;
+       results.push(result);
     });
     return results;
   } catch (error) {
     console.error('Error getting user quiz results: ', error);
+    // Check for specific index error (optional, for better logging)
+    if ((error as Error).message.includes('requires an index')) {
+        console.error("Firestore Index Missing: Please create the required composite index (userId Asc, completedAt Desc) in your Firebase console for the 'quizResults' collection.");
+    }
     throw error;
   }
 };
@@ -135,6 +164,11 @@ export const isCurrentUserAdmin = async (): Promise<boolean> => {
         return false; // Not logged in
     }
 
-    const profile = await getUserProfile(user.uid);
-    return profile?.role === 'admin';
+    try {
+        const profile = await getUserProfile(user.uid);
+        return profile?.role === 'admin';
+    } catch (error) {
+        console.error("Error checking admin status:", error);
+        return false; // Default to false on error
+    }
 };
