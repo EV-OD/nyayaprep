@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter, Roboto_Mono } from 'next/font/google'; // Use actual Google Fonts
+import { Inter, Roboto_Mono } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"; // Import Toaster
 
@@ -28,8 +28,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${roboto_mono.variable}`}> {/* Add variables to HTML tag */}
-      <body className={`font-sans antialiased`}> {/* Use font-sans utility */}
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${roboto_mono.variable}`}>
+      {/* The body tag must immediately follow the html tag without any whitespace */}
+      <body className={`font-sans antialiased`}>
         {/* Add ThemeProvider here if needed for dark/light mode toggle */}
         {children}
         <Toaster /> {/* Add Toaster component */}
