@@ -49,7 +49,7 @@ import {
 import { Timestamp } from 'firebase/firestore'; // Keep if date formatting is used
 import { format } from 'date-fns'; // Keep if date formatting is used
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { CSVUploadDialog } from './csv-upload-dialog'; // Import the new component
+import { CSVUploadDialog } from './csv-upload-dialog.tsx'; // Import the new component
 
 
 export default function ManageMCQsPage() {
@@ -361,3 +361,4 @@ function MCQTableSkeleton() {
         </Card>
     );
 }
+
