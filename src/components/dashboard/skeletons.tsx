@@ -49,15 +49,24 @@ export function AnswerHistorySkeleton() {
 
 export function PerformanceAnalyticsSkeleton() {
     return (
-        <div className="space-y-4">
-           <div className="grid grid-cols-2 gap-4">
-               <Skeleton className="h-16 w-full rounded-md" />
-               <Skeleton className="h-16 w-full rounded-md" />
-               <Skeleton className="h-16 w-full rounded-md" />
-               <Skeleton className="h-16 w-full rounded-md" />
+        <div className="space-y-6">
+           {/* Skeleton for Key Stats Section */}
+           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[...Array(4)].map((_, i) => (
+                     <div key={i} className="p-4 border rounded-lg bg-card shadow-sm">
+                         <div className="flex items-center gap-2 mb-2">
+                              <Skeleton className="h-4 w-4 rounded-full" /> {/* Icon Skeleton */}
+                              <Skeleton className="h-3 w-3/4" /> {/* Title Skeleton */}
+                          </div>
+                          <Skeleton className="h-6 w-1/2" /> {/* Value Skeleton */}
+                     </div>
+                 ))}
            </div>
-            <Skeleton className="h-4 w-1/3 mx-auto" />
-            <Skeleton className="h-[150px] w-full rounded-md" />
+            {/* Skeleton for Chart Section */}
+            <div className="mt-6">
+                <Skeleton className="h-4 w-1/3 mx-auto mb-3" /> {/* Chart Title Skeleton */}
+                <Skeleton className="h-[200px] w-full rounded-md" /> {/* Chart Skeleton */}
+            </div>
         </div>
     );
 }

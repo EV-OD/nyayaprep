@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts"; // Import AreaChart, Area
-import { TrendingUp, Lock, Zap, Activity } from 'lucide-react'; // Use Activity icon for trend
+import { TrendingUp, Lock, Zap, Activity, Target, Percent, ListChecks, HelpCircle } from 'lucide-react'; // Use Activity icon for trend, Added Target, Percent, ListChecks, HelpCircle
 import type { UserPerformanceStats } from '@/lib/firebase/firestore';
 import { cn } from '@/lib/utils';
 import { PerformanceAnalyticsSkeleton } from './skeletons';
@@ -65,23 +65,35 @@ export function PerformanceAnalyticsCard({ locked, loading, performanceStats, on
                    <PerformanceAnalyticsSkeleton />
                 ) : performanceStats ? (
                     <>
-                        {/* Key Stats Section */}
-                        <div className="grid grid-cols-2 gap-4 text-center">
-                            <div className="p-3 border rounded-lg bg-muted/30">
-                                <p className="text-xs text-muted-foreground mb-1">Overall Accuracy</p>
-                                <p className="text-xl font-bold">{performanceStats.accuracy}%</p>
+                        {/* Key Stats Section - Improved UI */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="p-4 border rounded-lg bg-card shadow-sm">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <Target className="h-4 w-4 text-blue-500" />
+                                    <p className="text-xs font-medium text-muted-foreground">Overall Accuracy</p>
+                                </div>
+                                <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{performanceStats.accuracy}%</p>
                             </div>
-                             <div className="p-3 border rounded-lg bg-muted/30">
-                                <p className="text-xs text-muted-foreground mb-1">Avg. Score</p>
-                                <p className="text-xl font-bold">{performanceStats.averageScore}%</p>
+                             <div className="p-4 border rounded-lg bg-card shadow-sm">
+                                <div className="flex items-center gap-2 mb-1">
+                                     <Percent className="h-4 w-4 text-green-500" />
+                                     <p className="text-xs font-medium text-muted-foreground">Avg. Score</p>
+                                </div>
+                                <p className="text-xl font-bold text-green-600 dark:text-green-400">{performanceStats.averageScore}%</p>
                             </div>
-                             <div className="p-3 border rounded-lg bg-muted/30">
-                                <p className="text-xs text-muted-foreground mb-1">Quizzes Taken</p>
-                                <p className="text-xl font-bold">{performanceStats.totalQuizzes}</p>
+                             <div className="p-4 border rounded-lg bg-card shadow-sm">
+                                 <div className="flex items-center gap-2 mb-1">
+                                     <ListChecks className="h-4 w-4 text-purple-500" />
+                                     <p className="text-xs font-medium text-muted-foreground">Quizzes Taken</p>
+                                 </div>
+                                <p className="text-xl font-bold text-purple-600 dark:text-purple-400">{performanceStats.totalQuizzes}</p>
                             </div>
-                            <div className="p-3 border rounded-lg bg-muted/30">
-                                <p className="text-xs text-muted-foreground mb-1">Questions Done</p>
-                                <p className="text-xl font-bold">{performanceStats.totalQuestions}</p>
+                            <div className="p-4 border rounded-lg bg-card shadow-sm">
+                                <div className="flex items-center gap-2 mb-1">
+                                     <HelpCircle className="h-4 w-4 text-orange-500" />
+                                     <p className="text-xs font-medium text-muted-foreground">Questions Done</p>
+                                </div>
+                                <p className="text-xl font-bold text-orange-600 dark:text-orange-400">{performanceStats.totalQuestions}</p>
                             </div>
                         </div>
 
@@ -149,3 +161,4 @@ export function PerformanceAnalyticsCard({ locked, loading, performanceStats, on
     </Card>
   );
 }
+
