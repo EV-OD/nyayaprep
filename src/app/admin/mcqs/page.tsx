@@ -1,9 +1,8 @@
-
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
-import { PlusCircle, Edit, Trash2, Languages, Filter, Search, Loader2, Star, CheckCircle, AlertTriangle, HelpCircle, Send, Clock, Check, X, Bell, Users, ListChecks } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Languages, Filter, Search, Loader2, Star, CheckCircle, AlertTriangle, HelpCircle, Send, Clock, Check, X, Bell, Users, ListChecks, FileText, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea'; // Keep if needed for detailed view later
@@ -50,6 +49,7 @@ import {
 import { Timestamp } from 'firebase/firestore'; // Keep if date formatting is used
 import { format } from 'date-fns'; // Keep if date formatting is used
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { CSVUploadDialog } from './csv-upload-dialog'; // Import the new component
 
 
 export default function ManageMCQsPage() {
@@ -58,6 +58,7 @@ export default function ManageMCQsPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedMcqs, setSelectedMcqs] = React.useState<Set<string>>(new Set());
+  const [isCSVUploadDialogOpen, setIsCSVUploadDialogOpen] = React.useState(false); // State for CSV dialog
 
   const { toast } = useToast();
 
@@ -170,6 +171,11 @@ export default function ManageMCQsPage() {
    const isAllSelected = filteredMcqs.length > 0 && selectedMcqs.size === filteredMcqs.length;
    const isIndeterminate = selectedMcqs.size > 0 && selectedMcqs.size < filteredMcqs.length;
 
+    const handleCsvUploadSuccess = () => {
+        // Re-fetch MCQs to update the table after a successful upload
+        toast({title: 'MCQs Uploaded', description: 'MCQs have been successfully uploaded.'});
+        fetchMcqs();
+    };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -217,6 +223,9 @@ export default function ManageMCQsPage() {
                  <PlusCircle className="mr-2 h-4 w-4" /> Add New MCQ
                </Button>
              </Link>
+             <Button size="sm" variant="outline" onClick={() => setIsCSVUploadDialogOpen(true)}>
+                <Upload className="mr-2 h-4 w-4" /> Upload CSV
+             </Button>
             </div>
          </div>
 
@@ -308,6 +317,11 @@ export default function ManageMCQsPage() {
                 </Table>
              </Card>
          )}
+          <CSVUploadDialog
+              isOpen={isCSVUploadDialogOpen}
+              onClose={() => setIsCSVUploadDialogOpen(false)}
+              onUploadSuccess={handleCsvUploadSuccess} // Pass upload success handler
+          />
        </main>
     </div>
   );
