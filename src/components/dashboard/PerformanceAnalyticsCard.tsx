@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { LineChart, Line, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Area } from "recharts"; // Import LineChart, Line, Area
+import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts"; // Import AreaChart, Area
 import { TrendingUp, Lock, Zap, Activity } from 'lucide-react'; // Use Activity icon for trend
 import type { UserPerformanceStats } from '@/lib/firebase/firestore';
 import { cn } from '@/lib/utils';
@@ -88,9 +88,9 @@ export function PerformanceAnalyticsCard({ locked, loading, performanceStats, on
                         {/* Score Trend Chart */}
                         <div className="mt-6">
                             <h4 className="text-sm font-medium mb-3 text-center text-foreground">Score Trend (Weekly Avg.)</h4>
-                            <ChartContainer config={chartConfig} className="h-[200px] w-full">
+                             <ChartContainer config={chartConfig} className="h-[200px] w-full">
                                 <ResponsiveContainer>
-                                    <LineChart
+                                    <AreaChart
                                         data={chartData}
                                         margin={{ top: 5, right: 10, left: -25, bottom: 0 }} // Adjusted margins
                                     >
@@ -118,26 +118,21 @@ export function PerformanceAnalyticsCard({ locked, loading, performanceStats, on
                                             tickFormatter={(value) => `${value}%`}
                                         />
                                         <ChartTooltip
-                                            cursor={false}
-                                            content={<ChartTooltipContent indicator="dot" hideLabel />}
+                                            cursor={true} // Show cursor line on hover
+                                            content={<ChartTooltipContent indicator="line" hideLabel />}
                                         />
                                         <Area
                                             dataKey="score"
                                             type="natural" // Use natural for smooth curve
                                             fill="url(#gradientFill)" // Apply gradient
                                             fillOpacity={1}
-                                            strokeWidth={0} // Hide area border
-                                        />
-                                        <Line
-                                            dataKey="score"
-                                            type="natural" // Use natural for smooth curve
                                             stroke="hsl(var(--primary))"
-                                            strokeWidth={2}
+                                            strokeWidth={3} // Increase stroke width
+                                            stackId="a" // Required for area charts
                                             dot={{ r: 4, fill: "hsl(var(--primary))" }}
                                             activeDot={{ r: 6, strokeWidth: 2 }}
                                         />
-
-                                    </LineChart>
+                                    </AreaChart>
                                 </ResponsiveContainer>
                              </ChartContainer>
                              {/* <Button variant="link" size="sm" className="p-0 h-auto text-xs mt-2 float-right" disabled={locked}>View Detailed Analytics</Button> */}
