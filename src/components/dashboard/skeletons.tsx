@@ -36,11 +36,14 @@ export function MyQuestionsSkeleton() {
 
 export function AnswerHistorySkeleton() {
     return (
-        <div className="space-y-3">
-            {[...Array(3)].map((_, i) => (
+        <div className="space-y-3 flex-grow"> {/* Added flex-grow */}
+            {[...Array(4)].map((_, i) => ( // Show more skeleton items
                  <div key={i} className="flex items-center justify-between p-3 border rounded-lg">
-                    <Skeleton className="h-4 w-2/3" />
-                     <Skeleton className="h-4 w-1/6" />
+                    <div className="flex-1 space-y-1.5 mr-4">
+                        <Skeleton className="h-4 w-1/2" /> {/* Quiz Date */}
+                        <Skeleton className="h-3 w-1/3" /> {/* Score */}
+                    </div>
+                    <Skeleton className="h-8 w-16 rounded-md" /> {/* View button */}
                  </div>
             ))}
         </div>
@@ -70,3 +73,4 @@ export function PerformanceAnalyticsSkeleton() {
         </div>
     );
 }
+
