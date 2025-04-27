@@ -5,19 +5,31 @@ import * as React from 'react';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import Alert components
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { auth } from '@/lib/firebase/config';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { getUserProfile, getUserQuizResults } from '@/lib/firebase/firestore';
 import type { UserProfile, QuizResult, SubscriptionPlan } from '@/types/user';
 import { formatDistanceToNow } from 'date-fns';
-import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle } from 'lucide-react'; // Import icons
+import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video } from 'lucide-react'; // Import icons
 import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation'; // Import useRouter
 
 // WhatsApp number for validation
 const WHATSAPP_NUMBER = '+97798XXXXXXXX'; // Placeholder number
@@ -27,19 +39,19 @@ const subscriptionDetails: Record<SubscriptionPlan, { name: string; features: st
     free: {
         name: 'Free',
         features: ['20 questions/day', 'Basic support'],
-        colorClass: 'bg-gray-100 text-gray-800 border-gray-300', // Gray for Free
+        colorClass: 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700', // Gray for Free
         price: 'NRS 0'
     },
     basic: {
         name: 'Basic',
         features: ['100 questions/day', 'Basic support'],
-        colorClass: 'bg-green-100 text-green-800 border-green-300', // Green for Basic
+        colorClass: 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700', // Green for Basic
         price: 'NRS 20 / week'
     },
     premium: {
         name: 'Premium',
         features: ['Unlimited questions', 'Premium content access', 'PDF downloads', 'Priority support'],
-        colorClass: 'bg-yellow-100 text-yellow-800 border-yellow-400', // Gold/Yellow for Premium
+        colorClass: 'bg-yellow-100 text-yellow-800 border-yellow-400 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700', // Gold/Yellow for Premium
         price: 'NRS 100 / week'
     },
 };
@@ -51,6 +63,7 @@ export default function UserDashboardPage() {
   const [results, setResults] = useState<QuizResult[]>([]);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [loadingResults, setLoadingResults] = useState(true);
+  const router = useRouter(); // Initialize router
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -66,6 +79,7 @@ export default function UserDashboardPage() {
              setResults(quizResults);
           } else {
              setResults([]); // No profile, no results
+             console.warn("User profile not found for UID:", currentUser.uid);
           }
         } catch (error) {
           console.error('Failed to load dashboard data:', error);
@@ -104,20 +118,47 @@ export default function UserDashboardPage() {
      const showValidationAlert = profile && profile.subscription !== 'free' && !profile.validated;
      const currentPlanDetails = profile?.subscription ? subscriptionDetails[profile.subscription] : subscriptionDetails.free;
 
+     // Determine content lock status
+     const contentLocked = !profile || !(profile.subscription === 'premium' && profile.validated);
+
+     const UpgradeAlertDialog = ({ triggerButton }: { triggerButton: React.ReactNode }) => (
+        <AlertDialog>
+            <AlertDialogTrigger asChild>{triggerButton}</AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2">
+                        <Lock className="text-primary" /> Content Locked
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This content is exclusive to our validated Premium members. Please upgrade your plan and validate your payment to get access.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction asChild>
+                        <Link href="/pricing">
+                            <Zap className="mr-2 h-4 w-4" /> Upgrade to Premium
+                        </Link>
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+     );
+
   return (
     <div className="p-6 md:p-10">
       <h1 className="text-2xl md:text-3xl font-bold mb-6">My Dashboard</h1>
 
       {/* Validation Alert */}
       {showValidationAlert && (
-         <Alert variant="destructive" className="mb-6 border-yellow-500 bg-yellow-50 text-yellow-800 [&>svg]:text-yellow-600">
+         <Alert variant="destructive" className="mb-6 border-yellow-500 bg-yellow-50 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700 [&>svg]:text-yellow-600 dark:[&>svg]:text-yellow-400">
            <AlertTriangle className="h-4 w-4" />
            <AlertTitle className="font-semibold">Account Pending Validation</AlertTitle>
            <AlertDescription>
              Your <span className="font-medium">{profile?.subscription}</span> plan payment needs verification. Please send your payment screenshot to our WhatsApp:
               <strong className="ml-1">{WHATSAPP_NUMBER}</strong>.
              <a href={`https://wa.me/${WHATSAPP_NUMBER.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="ml-2 inline-block">
-                 <Button variant="link" size="sm" className="p-0 h-auto text-xs text-yellow-700 hover:text-yellow-900">
+                 <Button variant="link" size="sm" className="p-0 h-auto text-xs text-yellow-700 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-200">
                      <MessageSquare className="mr-1 h-3 w-3"/> Send on WhatsApp
                  </Button>
              </a>
@@ -187,7 +228,7 @@ export default function UserDashboardPage() {
                        ? 'Take your daily free quiz.'
                        : profile?.validated
                          ? 'Take a new quiz to test your knowledge.'
-                         : 'Activate your plan to start unlimited quizzes.'
+                         : 'Activate your plan to start quizzes.'
                      }
                  </p>
                  <Link href="/quiz" passHref>
@@ -205,8 +246,8 @@ export default function UserDashboardPage() {
       </div>
 
 
-      {/* Second Row: Subscription Details & Recent Activity */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      {/* Second Row: Subscription, Recent Activity */}
+      <div className="grid gap-6 lg:grid-cols-3 mb-8">
          {/* Subscription Details Card */}
          <Card className="lg:col-span-1">
              <CardHeader>
@@ -217,7 +258,8 @@ export default function UserDashboardPage() {
                  {loadingProfile ? (
                      <SubscriptionSkeleton />
                  ) : (
-                     <div className={cn("p-4 rounded-lg border", currentPlanDetails.colorClass)}>
+                    <>
+                      <div className={cn("p-4 rounded-lg border mb-4", currentPlanDetails.colorClass)}>
                           <div className="flex justify-between items-center mb-3">
                               <h3 className="text-lg font-semibold">{currentPlanDetails.name} Plan</h3>
                               <Badge variant={getSubscriptionBadgeVariant(profile?.subscription)}>
@@ -229,9 +271,9 @@ export default function UserDashboardPage() {
                           {profile?.subscription !== 'free' && (
                              <div className="text-xs mb-3 flex items-center gap-1">
                                  {profile?.validated ? (
-                                     <> <CheckCircle size={14} className="text-green-600"/> Validated </>
+                                     <><CheckCircle size={14} className="text-green-600 dark:text-green-400"/> Validated</>
                                  ) : (
-                                      <> <AlertTriangle size={14} className="text-yellow-600"/> Pending Validation </>
+                                      <><AlertTriangle size={14} className="text-yellow-600 dark:text-yellow-400"/> Pending Validation</>
                                  )}
                              </div>
                           )}
@@ -243,15 +285,16 @@ export default function UserDashboardPage() {
                                   </li>
                               ))}
                           </ul>
-                           {profile?.subscription !== 'premium' && (
-                             <Link href="/pricing" passHref className="mt-4 inline-block">
-                                 <Button variant="link" size="sm" className="p-0 h-auto text-xs text-primary hover:underline">
-                                     Upgrade Plan
-                                     <Zap className="ml-1 h-3 w-3" />
-                                 </Button>
-                              </Link>
-                           )}
                       </div>
+                       {profile?.subscription !== 'premium' && (
+                         <Link href="/pricing" passHref>
+                             <Button variant="outline" size="sm" className="w-full">
+                                 Upgrade Plan
+                                 <Zap className="ml-1.5 h-4 w-4" />
+                             </Button>
+                          </Link>
+                       )}
+                    </>
                  )}
              </CardContent>
          </Card>
@@ -298,6 +341,83 @@ export default function UserDashboardPage() {
            </CardContent>
          </Card>
       </div>
+
+       {/* Third Row: Notes/Resources & Videos */}
+       <div className="grid gap-6 md:grid-cols-2">
+          {/* Notes & Resources Section */}
+          <Card className="relative overflow-hidden">
+              <CardHeader>
+                 <CardTitle className="flex items-center gap-2"><Newspaper size={20} /> Notes & Resources</CardTitle>
+                 <CardDescription>Access study materials, PDFs, and important notes.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                 {contentLocked && (
+                     <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-10 rounded-lg">
+                         <Lock size={40} className="text-primary mb-4" />
+                         <p className="text-center font-semibold mb-4">This section requires a validated Premium plan.</p>
+                          <UpgradeAlertDialog
+                             triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Now</Button>}
+                         />
+                     </div>
+                 )}
+                 {/* Actual content goes here, visible only if not locked */}
+                  <div className={cn("space-y-3", contentLocked ? "opacity-30 pointer-events-none" : "")}>
+                      {/* Example Content Item */}
+                      <div className="flex justify-between items-center p-3 border rounded-md">
+                          <span className="text-sm font-medium">Constitution of Nepal - Key Articles PDF</span>
+                          <Button variant="outline" size="sm" disabled={contentLocked}>Download</Button>
+                      </div>
+                      <div className="flex justify-between items-center p-3 border rounded-md">
+                          <span className="text-sm font-medium">Legal Theory Summaries</span>
+                          <Button variant="outline" size="sm" disabled={contentLocked}>View</Button>
+                      </div>
+                       {/* Add more resources */}
+                  </div>
+              </CardContent>
+          </Card>
+
+          {/* Videos Section */}
+           <Card className="relative overflow-hidden">
+              <CardHeader>
+                 <CardTitle className="flex items-center gap-2"><Video size={20} /> Video Lectures</CardTitle>
+                 <CardDescription>Watch recorded lectures and tutorials.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                  {contentLocked && (
+                     <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-10 rounded-lg">
+                         <Lock size={40} className="text-primary mb-4" />
+                         <p className="text-center font-semibold mb-4">This section requires a validated Premium plan.</p>
+                         <UpgradeAlertDialog
+                             triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Now</Button>}
+                         />
+                     </div>
+                 )}
+                  {/* Actual content goes here */}
+                   <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-4", contentLocked ? "opacity-30 pointer-events-none" : "")}>
+                       {/* Example Video Item */}
+                       <div className="border rounded-md overflow-hidden">
+                            <div className="aspect-video bg-muted flex items-center justify-center">
+                                <Video size={48} className="text-muted-foreground" />
+                            </div>
+                            <div className="p-3">
+                                <p className="text-sm font-medium mb-1 line-clamp-1">Intro to Criminal Law</p>
+                                <Button variant="link" size="sm" className="p-0 h-auto text-xs" disabled={contentLocked}>Watch Now</Button>
+                            </div>
+                       </div>
+                       <div className="border rounded-md overflow-hidden">
+                            <div className="aspect-video bg-muted flex items-center justify-center">
+                                <Video size={48} className="text-muted-foreground" />
+                            </div>
+                            <div className="p-3">
+                                <p className="text-sm font-medium mb-1 line-clamp-1">Understanding Writs</p>
+                                <Button variant="link" size="sm" className="p-0 h-auto text-xs" disabled={contentLocked}>Watch Now</Button>
+                            </div>
+                       </div>
+                        {/* Add more videos */}
+                   </div>
+              </CardContent>
+          </Card>
+       </div>
     </div>
   );
 }
@@ -320,7 +440,7 @@ function ResultsTableSkeleton() {
 
 function SubscriptionSkeleton() {
     return (
-        <div className="p-4 rounded-lg border border-muted bg-muted/50 animate-pulse">
+        <div className="p-4 rounded-lg border border-muted bg-muted/50 dark:bg-muted/10 animate-pulse">
              <div className="flex justify-between items-center mb-3">
                 <Skeleton className="h-6 w-2/5 rounded" />
                  <Skeleton className="h-6 w-1/4 rounded-full" />
@@ -332,7 +452,7 @@ function SubscriptionSkeleton() {
                   <Skeleton className="h-3 w-full rounded" />
                    <Skeleton className="h-3 w-2/3 rounded" />
               </div>
-               <Skeleton className="h-5 w-1/4 mt-4 rounded" />
+               <Skeleton className="h-8 w-full mt-4 rounded" />
          </div>
     );
 }
