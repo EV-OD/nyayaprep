@@ -172,7 +172,7 @@ export const getUserQuizResults = async (userId: string, count?: number): Promis
         console.warn(
           `Firestore Query Requires Index: The query to fetch user quiz results needs a composite index:\n` +
           `Collection: 'quizResults', Fields: 'userId' (Asc), 'completedAt' (Desc).\n`+
-          `Please create this index in your Firebase console. If you've created it, ensure it's enabled.`
+          `Please create this index in your Firebase console using the link provided in the error message, or manually. Ensure the index is fully built before retrying.`
         );
     }
      return []; // Return empty array on error
@@ -296,7 +296,7 @@ export const getUserTeacherQuestions = async (userId: string): Promise<TeacherQu
         const q = query(
             teacherQuestionsCollection,
             where('userId', '==', userId),
-            orderBy('askedAt', 'desc')
+            orderBy('askedAt', 'desc') // Order by descending asked date
         );
 
         const querySnapshot = await getDocs(q);
@@ -322,8 +322,8 @@ export const getUserTeacherQuestions = async (userId: string): Promise<TeacherQu
         if (firebaseError.message.includes('requires an index')) {
            console.warn(
              `Firestore Query Requires Index: The query to fetch user teacher questions needs a composite index:\n` +
-             `Collection: 'teacherQuestions', Fields: 'userId' (Asc), 'askedAt' (Desc).\n`+
-             `Please create this index in your Firebase console.`
+             `Collection: 'teacherQuestions', Fields: 'userId' (Ascending), 'askedAt' (Descending).\n`+
+             `Please create this index in your Firebase console using the link provided in the error message, or manually. Ensure the index is fully built before retrying.`
            );
         }
         return []; // Return empty on error
@@ -365,8 +365,8 @@ export const getPendingTeacherQuestions = async (): Promise<TeacherQuestion[]> =
          if (firebaseError.message.includes('requires an index')) {
             console.warn(
               `Firestore Query Requires Index: The query to fetch pending teacher questions needs a composite index:\n` +
-              `Collection: 'teacherQuestions', Fields: 'status' (Asc), 'askedAt' (Asc).\n`+
-              `Please create this index in your Firebase console.`
+              `Collection: 'teacherQuestions', Fields: 'status' (Ascending), 'askedAt' (Ascending).\n`+
+              `Please create this index in your Firebase console using the link provided in the error message, or manually. Ensure the index is fully built before retrying.`
             );
          }
          return []; // Return empty on error
@@ -398,3 +398,6 @@ export const answerTeacherQuestion = async (questionId: string, answerText: stri
         throw error;
     }
 };
+
+
+    
