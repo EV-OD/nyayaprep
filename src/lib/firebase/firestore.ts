@@ -24,6 +24,7 @@ import {
 import type { UserProfile, QuizResult, SubscriptionPlan, TeacherQuestion } from '@/types/user';
 import type { Question, Answer } from '@/types/quiz'; // Import Question and Answer types
 import type { User } from 'firebase/auth';
+import { isToday } from 'date-fns'; // Import isToday
 
 const usersCollection = collection(db, 'users');
 const quizResultsCollection = collection(db, 'quizResults');
@@ -33,7 +34,7 @@ const mcqsCollection = collection(db, 'mcqs'); // Collection for MCQs
 /**
  * Creates or updates a user profile document in Firestore.
  * Initializes the 'validated' field based on the subscription plan.
- * Initializes 'askTeacherCount' and 'lastAskTeacherDate'.
+ * Initializes 'askTeacherCount', 'lastAskTeacherDate', 'quizCountToday', and 'lastQuizDate'.
  * Initializes 'unreadNotifications' and 'lastNotificationCheck'.
  * Initializes 'expiryDate' to null.
  * @param user Firebase User object.
@@ -63,6 +64,8 @@ export const createUserProfileDocument = async (
     expiryDate: null, // Initialize expiryDate
     askTeacherCount: 0,
     lastAskTeacherDate: Timestamp.fromMillis(0), // Initialize with epoch
+    quizCountToday: 0, // Initialize quiz count
+    lastQuizDate: Timestamp.fromMillis(0), // Initialize last quiz date with epoch
     unreadNotifications: 0,
     lastNotificationCheck: Timestamp.now(), // Initialize check time
   };
@@ -104,6 +107,8 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
           expiryDate: data.expiryDate instanceof Timestamp ? data.expiryDate : null, // Fetch expiryDate
           askTeacherCount: data.askTeacherCount || 0,
           lastAskTeacherDate: data.lastAskTeacherDate instanceof Timestamp ? data.lastAskTeacherDate : Timestamp.fromMillis(0), // Default if missing
+          quizCountToday: data.quizCountToday || 0, // Fetch quiz count
+          lastQuizDate: data.lastQuizDate instanceof Timestamp ? data.lastQuizDate : Timestamp.fromMillis(0), // Fetch last quiz date
           unreadNotifications: data.unreadNotifications || 0, // Default to 0 if missing
           lastNotificationCheck: data.lastNotificationCheck instanceof Timestamp ? data.lastNotificationCheck : Timestamp.now(), // Default to now if missing
       };
@@ -296,6 +301,8 @@ export const getAllUsers = async (): Promise<UserProfile[]> => {
         expiryDate: data.expiryDate instanceof Timestamp ? data.expiryDate : null, // Fetch expiryDate
         askTeacherCount: data.askTeacherCount || 0,
         lastAskTeacherDate: data.lastAskTeacherDate instanceof Timestamp ? data.lastAskTeacherDate : Timestamp.fromMillis(0),
+        quizCountToday: data.quizCountToday || 0, // Fetch quiz count
+        lastQuizDate: data.lastQuizDate instanceof Timestamp ? data.lastQuizDate : Timestamp.fromMillis(0), // Fetch last quiz date
         unreadNotifications: data.unreadNotifications || 0,
         lastNotificationCheck: data.lastNotificationCheck instanceof Timestamp ? data.lastNotificationCheck : Timestamp.now(),
       };
@@ -350,6 +357,34 @@ export const updateAskTeacherUsage = async (uid: string, newCount: number): Prom
          throw error;
      }
  };
+
+/**
+ * Updates the user's quiz count for the day. Resets count if last quiz was not today.
+ * @param uid The user's unique ID.
+ */
+export const updateUserQuizUsage = async (uid: string): Promise<void> => {
+    if (!uid) throw new Error("User UID is required.");
+    const userRef = doc(usersCollection, uid);
+    try {
+        const userProfile = await getUserProfile(uid);
+        if (!userProfile) return; // User not found
+
+        let newCount = 1;
+        // Check if the last quiz date exists and if it's today
+        if (userProfile.lastQuizDate && isToday(userProfile.lastQuizDate.toDate())) {
+            newCount = (userProfile.quizCountToday || 0) + 1;
+        }
+
+        await updateDoc(userRef, {
+            quizCountToday: newCount,
+            lastQuizDate: serverTimestamp(), // Update to current time
+        });
+        console.log(`User ${uid} Quiz usage updated. Today's count: ${newCount}`);
+    } catch (error) {
+        console.error(`Error updating Quiz usage for user ${uid}:`, error);
+        throw error;
+    }
+};
 
 
 // --- Functions for "Ask a Teacher" ---
@@ -433,17 +468,17 @@ export const getUserTeacherQuestions = async (userId: string): Promise<TeacherQu
          console.error('Error getting user teacher questions: ', firebaseError.message);
          // Check for specific index error
          if (firebaseError.message.includes('requires an index')) {
-             const isBuilding = firebaseError.message.includes('currently building');
-             const indexCreationMessage =
-               `Firestore Query Requires Index: The query to fetch user teacher questions needs a composite index:\n` +
-               `Collection: 'teacherQuestions', Fields: 'userId' (Ascending), 'askedAt' (Descending).\n`+
-               `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`;
-             console.warn(indexCreationMessage);
-             // Propagate a more informative error
-             const userFriendlyMessage = isBuilding
+            const isBuilding = firebaseError.message.includes('currently building');
+            const indexCreationMessage =
+              `Firestore Query Requires Index: The query to fetch user teacher questions needs a composite index:\n` +
+              `Collection: 'teacherQuestions', Fields: 'userId' (Ascending), 'askedAt' (Descending).\n`+
+              `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`;
+            console.warn(indexCreationMessage);
+            // Propagate a more informative error
+            const userFriendlyMessage = isBuilding
                  ? "The database index needed to fetch your questions is currently being built. Please try again in a few minutes."
                  : "A required database index (teacherQuestions: userId Asc, askedAt Desc) is missing. Please contact support or create it in the Firebase console.";
-             throw new Error(userFriendlyMessage); // Propagate a more informative error
+            throw new Error(userFriendlyMessage); // Propagate a more informative error
          }
         throw error; // Re-throw other errors
     }
@@ -905,3 +940,4 @@ export const calculateUserPerformanceStats = async (userId: string): Promise<Use
     throw error; // Re-throw the error
   }
 };
+

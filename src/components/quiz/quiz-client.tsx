@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -13,16 +14,18 @@ import { useToast } from '@/hooks/use-toast';
 import { ReviewAnswersDialog } from './review-answers-dialog';
 import { Loader2, Languages, ArrowLeft, ArrowRight, CheckCircle, XCircle } from 'lucide-react';
 import { translateText } from '@/services/translation'; // Assuming this service exists
-import { auth } from '@/lib/firebase/config'; // Import auth
+// import { auth } from '@/lib/firebase/config'; // No longer needed here, userId passed as prop
 import { saveQuizResult } from '@/lib/firebase/firestore'; // Import firestore function
 import type { QuizResult } from '@/types/user';
 import { useRouter } from 'next/navigation'; // For redirecting after submit
 
 interface QuizClientProps {
   questions: Question[];
+  userId: string | null; // Receive user ID as prop
+  onQuizSubmit: () => Promise<void>; // Callback for after submission
 }
 
-export function QuizClient({ questions }: QuizClientProps) {
+export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({}); // { questionId: selectedAnswerText (in current language) }
   const [quizFinished, setQuizFinished] = useState(false);
@@ -33,18 +36,18 @@ export function QuizClient({ questions }: QuizClientProps) {
   const [isSubmitting, setIsSubmitting] = useState(false); // Loading state for submission
   const [finalAnswers, setFinalAnswers] = useState<Answer[]>([]); // Will store answers with text
   const [showReview, setShowReview] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null); // Store current user's ID
+  // const [currentUserId, setCurrentUserId] = useState<string | null>(null); // No longer needed, use prop
 
   const { toast } = useToast();
   const router = useRouter(); // Initialize router
 
-  // Get current user ID
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(user => {
-      setCurrentUserId(user ? user.uid : null);
-    });
-    return () => unsubscribe();
-  }, []);
+  // Get current user ID - Removed, use userId prop instead
+  // useEffect(() => {
+  //   const unsubscribe = auth.onAuthStateChanged(user => {
+  //     setCurrentUserId(user ? user.uid : null);
+  //   });
+  //   return () => unsubscribe();
+  // }, []);
 
 
   const currentQuestion = questions[currentQuestionIndex];
@@ -137,9 +140,9 @@ export function QuizClient({ questions }: QuizClientProps) {
 
 
     // Save result to Firestore if user is logged in
-    if (currentUserId) {
+    if (userId) { // Use userId prop
       const resultData: Omit<QuizResult, 'id' | 'completedAt'> = { // Exclude id and completedAt (serverTimestamp used)
-        userId: currentUserId,
+        userId: userId, // Use userId prop
         score: finalScore,
         totalQuestions: totalQuestions,
         percentage: percentage,
@@ -149,6 +152,7 @@ export function QuizClient({ questions }: QuizClientProps) {
       };
       try {
         await saveQuizResult(resultData);
+        await onQuizSubmit(); // Call the callback to update user usage
         toast({
           title: "Quiz Submitted!",
           description: `Your result: ${finalScore}/${totalQuestions} (${percentage}%). It has been saved.`,
@@ -181,17 +185,19 @@ export function QuizClient({ questions }: QuizClientProps) {
   };
 
   const restartQuiz = () => {
-    setCurrentQuestionIndex(0);
-    setSelectedAnswers({});
-    setQuizFinished(false);
-    setScore(0);
-    setFinalAnswers([]);
-    setLanguage('en'); // Reset language
-    setIsSubmitting(false);
-    toast({
-      title: "Quiz Restarted",
-      description: "Good luck!",
-    });
+    // Instead of restarting, maybe redirect to quiz page to re-check limits/fetch new questions?
+    // setCurrentQuestionIndex(0);
+    // setSelectedAnswers({});
+    // setQuizFinished(false);
+    // setScore(0);
+    // setFinalAnswers([]);
+    // setLanguage('en'); // Reset language
+    // setIsSubmitting(false);
+    // toast({
+    //   title: "Quiz Restarted",
+    //   description: "Good luck!",
+    // });
+     router.push('/quiz'); // Navigate back to quiz page to start fresh
   };
 
   // --- Memoized values for performance ---
@@ -204,7 +210,7 @@ export function QuizClient({ questions }: QuizClientProps) {
   if (quizFinished) {
     // Result display remains the same
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-6 md:p-8 bg-gradient-to-br from-background to-muted/50">
+      <div className="flex flex-col items-center justify-center flex-1 w-full p-6 md:p-8">
         <Card className="w-full max-w-md text-center p-6 md:p-8 rounded-xl shadow-lg border">
           <CardHeader>
             <CardTitle className="text-3xl font-bold text-primary mb-2">Quiz Completed!</CardTitle>
@@ -217,15 +223,15 @@ export function QuizClient({ questions }: QuizClientProps) {
           <CardContent>
             <p className="mb-6 text-muted-foreground">
                {totalQuestions > 0 && (score / totalQuestions) > 0.7 ? "Great job!" : "Keep practicing!"}
-               {!currentUserId && " Log in or register to save your results."}
+               {!userId && " Log in or register to save your results."}
             </p>
           </CardContent>
           <CardFooter className="flex flex-col sm:flex-row justify-center gap-3">
             <Button onClick={restartQuiz} variant="outline" size="lg">
-              Restart Quiz
+              Take Another Quiz
             </Button>
              <Button onClick={() => setShowReview(true)} size="lg">Review Answers</Button>
-             {currentUserId && (
+             {userId && (
                  <Button onClick={() => router.push('/dashboard')} variant="secondary" size="lg">Go to Dashboard</Button>
              )}
           </CardFooter>
@@ -242,7 +248,7 @@ export function QuizClient({ questions }: QuizClientProps) {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 md:p-8 bg-gradient-to-br from-background to-muted/50">
+    <div className="flex flex-col items-center justify-center flex-1 w-full p-4 md:p-8">
       <Card className="w-full max-w-2xl rounded-xl shadow-lg border overflow-hidden">
         <CardHeader className="p-6 bg-muted/30 border-b">
            <div className="flex justify-between items-center mb-3">
@@ -388,3 +394,4 @@ export function QuizClient({ questions }: QuizClientProps) {
     </div>
   );
 }
+

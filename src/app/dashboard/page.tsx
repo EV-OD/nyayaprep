@@ -2,11 +2,11 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Bell, AlertTriangle, MessageSquare, RefreshCw } from 'lucide-react';
+import { Bell, AlertTriangle, MessageSquare, RefreshCw, Lock } from 'lucide-react'; // Added Lock
 import { auth } from '@/lib/firebase/config';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import {
@@ -21,7 +21,7 @@ import {
     UserPerformanceStats,
 } from '@/lib/firebase/firestore';
 import type { UserProfile, QuizResult, SubscriptionPlan, TeacherQuestion } from '@/types/user';
-import { isToday, format, differenceInDays } from 'date-fns';
+import { isToday, format } from 'date-fns'; // Removed differenceInDays as it's handled in profile page
 import { AskTeacherDialog } from '@/components/user/ask-teacher-dialog';
 import { useToast } from '@/hooks/use-toast';
 
@@ -41,7 +41,7 @@ import { SubscriptionSkeleton, MyQuestionsSkeleton, AnswerHistorySkeleton, Perfo
 // Keep subscription details and WhatsApp number here as they are config-like
 const WHATSAPP_NUMBER = '+97798XXXXXXXX'; // Placeholder number
 
-const subscriptionDetails: Record<SubscriptionPlan, { name: string; features: { text: string; included: boolean }[]; colorClass: string; price: string, askLimit: number }> = {
+const subscriptionDetails: Record<SubscriptionPlan, { name: string; features: { text: string; included: boolean }[]; colorClass: string; price: string, askLimit: number, quizLimit: number | Infinity }> = {
     free: {
         name: 'Free',
         features: [
@@ -55,6 +55,7 @@ const subscriptionDetails: Record<SubscriptionPlan, { name: string; features: { 
         colorClass: 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700',
         price: 'NRS 0',
         askLimit: 0,
+        quizLimit: 2,
     },
     basic: {
         name: 'Basic',
@@ -69,6 +70,7 @@ const subscriptionDetails: Record<SubscriptionPlan, { name: string; features: { 
         colorClass: 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700',
         price: 'NRS 50 / week',
         askLimit: 2,
+        quizLimit: 5,
     },
     premium: {
         name: 'Premium',
@@ -83,6 +85,7 @@ const subscriptionDetails: Record<SubscriptionPlan, { name: string; features: { 
         colorClass: 'bg-yellow-100 text-yellow-800 border-yellow-400 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700',
         price: 'NRS 100 / week',
         askLimit: 20,
+        quizLimit: Infinity,
     },
 };
 
@@ -101,6 +104,7 @@ export default function UserDashboardPage() {
   const [canAskTeacher, setCanAskTeacher] = useState(false);
   const [askTeacherUsage, setAskTeacherUsage] = useState(0);
   const [isValidated, setIsValidated] = useState(false);
+  const [hasSubscriptionExpired, setHasSubscriptionExpired] = useState(false); // State for expiry
   const router = useRouter();
   const { toast } = useToast();
   const myQuestionsRef = useRef<HTMLDivElement>(null);
@@ -115,19 +119,23 @@ export default function UserDashboardPage() {
         setLoadingTeacherQuestions(true);
         try {
           const expired = await handleSubscriptionExpiry(currentUser.uid);
+          setHasSubscriptionExpired(expired); // Store expiry status
           if (expired) {
               toast({ variant: "destructive", title: "Subscription Expired", description: "Your access has been updated. Please renew your subscription." });
           }
 
+          // Fetch potentially updated profile
           const userProfile = await getUserProfile(currentUser.uid);
           setProfile(userProfile);
 
           if (userProfile) {
-             setIsValidated(userProfile.validated);
+             setIsValidated(userProfile.validated); // Update validation state
              setUnreadNotifications(userProfile.unreadNotifications || 0);
 
-             const featuresEnabled = userProfile.validated;
+             // Determine if features should be enabled based on VALIDATED status (except for free plan)
+             const featuresEnabled = userProfile.subscription === 'free' || userProfile.validated;
 
+             // Fetch data based on subscription AND validation status
              const [allQuizResults, fetchedTeacherQuestions, fetchedStats] = await Promise.all([
                   (userProfile.subscription === 'premium' && featuresEnabled) ? getUserQuizResults(currentUser.uid) : Promise.resolve([]),
                   ((userProfile.subscription === 'basic' || userProfile.subscription === 'premium') && featuresEnabled) ? getUserTeacherQuestions(currentUser.uid) : Promise.resolve([]),
@@ -137,16 +145,17 @@ export default function UserDashboardPage() {
              setTeacherQuestions(fetchedTeacherQuestions);
              setPerformanceStats(fetchedStats);
 
-             const todayUsage = userProfile.lastAskTeacherDate && isToday(userProfile.lastAskTeacherDate.toDate())
+             // Calculate Ask Teacher limits based on validation
+             const askLimit = subscriptionDetails[userProfile.subscription]?.askLimit ?? 0;
+             const todayAskUsage = userProfile.lastAskTeacherDate && isToday(userProfile.lastAskTeacherDate.toDate())
                ? userProfile.askTeacherCount || 0
                : 0;
-
-             const limit = subscriptionDetails[userProfile.subscription]?.askLimit ?? 0;
-
-             setAskTeacherUsage(todayUsage);
-             setCanAskTeacher(todayUsage < limit && (userProfile.subscription === 'basic' || userProfile.subscription === 'premium') && featuresEnabled);
+             setAskTeacherUsage(todayAskUsage);
+             setCanAskTeacher(todayAskUsage < askLimit && featuresEnabled && (userProfile.subscription === 'basic' || userProfile.subscription === 'premium'));
 
           } else {
+             // Handle profile not found case
+             setProfile(null);
              setResults([]);
              setTeacherQuestions([]);
              setPerformanceStats(null);
@@ -154,16 +163,14 @@ export default function UserDashboardPage() {
              setUnreadNotifications(0);
              setIsValidated(false);
              console.warn("User profile not found for UID:", currentUser.uid);
+             // Optionally redirect or show an error state
           }
         } catch (error) {
             console.error('Failed to load dashboard data:', error);
             const firebaseError = error as Error;
              if (firebaseError.message.includes('Firestore Query Requires Index')) {
                  console.warn('Dashboard data loading delayed due to Firestore index creation/update.');
-             } else if (firebaseError.message.includes('expired')) {
-                 // Handled
-             }
-              else {
+             } else {
                  toast({ variant: 'destructive', title: 'Error', description: 'Failed to load some dashboard data.' });
              }
         } finally {
@@ -172,6 +179,7 @@ export default function UserDashboardPage() {
           setLoadingTeacherQuestions(false);
         }
       } else {
+        // User logged out
         setProfile(null);
         setResults([]);
         setPerformanceStats(null);
@@ -179,6 +187,7 @@ export default function UserDashboardPage() {
         setUnreadNotifications(0);
         setCanAskTeacher(false);
         setIsValidated(false);
+        setHasSubscriptionExpired(false);
         setLoadingProfile(false);
         setLoadingResults(false);
         setLoadingTeacherQuestions(false);
@@ -188,17 +197,18 @@ export default function UserDashboardPage() {
   }, [toast]); // Added toast dependency
 
   const handleAskQuestionSubmit = async (questionText: string) => {
-      if (!profile || !user || !canAskTeacher || !isValidated) return;
+      if (!profile || !user || !canAskTeacher) return; // Rely on canAskTeacher state
 
        const newCount = askTeacherUsage + 1;
        try {
             await saveTeacherQuestion(user.uid, questionText, profile.name, profile.email);
             await updateAskTeacherUsage(profile.uid, newCount);
 
-            setAskTeacherUsage(newCount);
+            setAskTeacherUsage(newCount); // Update local usage count
             const limit = subscriptionDetails[profile.subscription]?.askLimit || 0;
-            setCanAskTeacher(newCount < limit && isValidated);
+            setCanAskTeacher(newCount < limit && isValidated); // Recalculate canAskTeacher
 
+            // Refresh questions list
             setLoadingTeacherQuestions(true);
             const updatedQuestions = await getUserTeacherQuestions(user.uid);
             setTeacherQuestions(updatedQuestions);
@@ -218,7 +228,7 @@ export default function UserDashboardPage() {
           if (user && unreadNotifications > 0) {
               try {
                   await clearUserNotifications(user.uid);
-                  setUnreadNotifications(0);
+                  setUnreadNotifications(0); // Optimistically update UI
               } catch (error) {
                   console.error("Failed to clear notifications:", error);
                   toast({ variant: 'destructive', title: 'Error', description: 'Could not clear notifications.' });
@@ -228,24 +238,20 @@ export default function UserDashboardPage() {
   };
 
     const handleUpgradeClick = () => {
-        if (profile && profile.subscription !== 'premium') {
-            const targetPlan: SubscriptionPlan = 'premium';
-             router.push(`/payment?plan=${targetPlan}`);
-        } else if (!profile) {
-            router.push('/login?redirect=/pricing');
-        } else {
-             router.push('/dashboard/profile');
-        }
+       if (!user) {
+           router.push('/login?redirect=/pricing');
+       } else {
+            // If logged in, always go to pricing to choose plan
+            // Pricing page will handle redirect to payment if needed
+            router.push('/pricing');
+       }
     };
 
      // Determine alert to show based on validation status and expiry
      const getValidationAlert = () => {
           if (!profile || profile.subscription === 'free') return null;
 
-          const now = new Date();
-          const hasExpired = profile.expiryDate && now > profile.expiryDate.toDate();
-
-          if (hasExpired) {
+          if (hasSubscriptionExpired) { // Use the state set by handleSubscriptionExpiry
               return (
                  <Alert variant="destructive" className="border-red-500 bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700 [&>svg]:text-red-600 dark:[&>svg]:text-red-400">
                      <AlertTriangle className="h-4 w-4" />
@@ -279,12 +285,14 @@ export default function UserDashboardPage() {
           return null; // Validated and not expired
      };
 
-     const currentPlanDetails = profile?.subscription ? subscriptionDetails[profile.subscription] : subscriptionDetails.free;
-     const featuresLocked = !isValidated && profile?.subscription !== 'free';
-     const contentLocked = profile?.subscription !== 'premium' || featuresLocked;
-     const historyAndAnalyticsLocked = profile?.subscription !== 'premium' || featuresLocked;
-     const askTeacherLocked = profile?.subscription === 'free' || featuresLocked;
-     const askLimit = profile ? currentPlanDetails.askLimit : 0;
+     // Determine locking based on validation and subscription plan
+     const featuresLocked = !profile || (profile.subscription !== 'free' && !isValidated); // Locked if paid and not validated
+     const contentLocked = !profile || (profile.subscription !== 'premium' || featuresLocked); // Locked if not premium OR features locked
+     const historyAndAnalyticsLocked = !profile || (profile.subscription !== 'premium' || featuresLocked); // Locked if not premium OR features locked
+     const askTeacherLocked = !profile || ((profile.subscription !== 'basic' && profile.subscription !== 'premium') || featuresLocked); // Locked if not basic/premium OR features locked
+
+     const currentPlan = profile?.subscription || 'free';
+     const askLimit = subscriptionDetails[currentPlan]?.askLimit ?? 0;
      const askLimitReached = askTeacherUsage >= askLimit;
 
 
@@ -314,13 +322,17 @@ export default function UserDashboardPage() {
             <WelcomeCard profile={profile} loading={loadingProfile} />
             <ScoreCard
                 profile={profile}
-                isValidated={isValidated}
+                isValidated={isValidated} // Pass validation status
                 loading={loadingResults}
                 results={results}
                 performanceStats={performanceStats}
                 onUpgradeClick={handleUpgradeClick}
             />
-            <StartQuizCard profile={profile} isValidated={isValidated} featuresLocked={featuresLocked} />
+            <StartQuizCard
+                profile={profile}
+                isValidated={isValidated}
+                featuresLocked={featuresLocked}
+            />
        </div>
 
 
@@ -328,7 +340,7 @@ export default function UserDashboardPage() {
       <div className="grid gap-6 lg:grid-cols-1">
          <SubscriptionCard
             profile={profile}
-            isValidated={isValidated}
+            isValidated={isValidated} // Pass validation status
             loading={loadingProfile}
             subscriptionDetails={subscriptionDetails}
             onUpgradeClick={handleUpgradeClick}
@@ -362,8 +374,8 @@ export default function UserDashboardPage() {
        {/* Fifth Row: Ask Teacher & My Questions */}
        <div className="grid gap-6 lg:grid-cols-2">
             <AskTeacherCard
-                locked={askTeacherLocked}
-                featuresLocked={featuresLocked}
+                locked={askTeacherLocked} // Use specific lock state for this feature
+                featuresLocked={featuresLocked} // Pass general feature lock state
                 profile={profile}
                 limit={askLimit}
                 usage={askTeacherUsage}
@@ -373,8 +385,8 @@ export default function UserDashboardPage() {
             />
             <MyQuestionsCard
                 ref={myQuestionsRef} // Pass the ref here
-                locked={askTeacherLocked}
-                featuresLocked={featuresLocked}
+                locked={askTeacherLocked} // Use specific lock state
+                featuresLocked={featuresLocked} // Pass general feature lock state
                 loading={loadingTeacherQuestions}
                 questions={teacherQuestions}
                 profile={profile}
@@ -397,5 +409,3 @@ export default function UserDashboardPage() {
     </div>
   );
 }
-
-    

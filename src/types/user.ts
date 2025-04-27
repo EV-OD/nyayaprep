@@ -19,6 +19,8 @@ export interface UserProfile {
   lastAskTeacherDate?: Timestamp; // Date when the last question was asked
   unreadNotifications?: number; // Count of unread notifications (e.g., answered questions)
   lastNotificationCheck?: Timestamp; // Timestamp when the user last checked/cleared notifications
+  quizCountToday?: number; // Number of quizzes taken today
+  lastQuizDate?: Timestamp; // Date when the last quiz was taken
 }
 
 export interface QuizResult {
@@ -48,3 +50,4 @@ export interface TeacherQuestion {
     // fileUrl?: string | null; // Optional: URL for attached file (skipped for now)
     // answerFileUrl?: string | null; // Optional: URL for answer file (skipped for now)
 }
+
