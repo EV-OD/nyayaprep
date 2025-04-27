@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from '@/hooks/use-toast';
+import { auth } from '@/lib/firebase/config'; // Import Firebase auth instance
+import { signOut } from 'firebase/auth'; // Import Firebase sign out function
 
 interface AdminHeaderProps {
   title: string;
@@ -23,14 +25,22 @@ export function AdminHeader({ title }: AdminHeaderProps) {
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleLogout = () => {
-     // Clear authentication state
-     localStorage.removeItem('isAdminAuthenticated'); // Example: Clear mock auth
-     toast({
-       title: "Logged Out",
-       description: "You have been successfully logged out.",
-     });
-     router.replace('/admin'); // Redirect to login page
+  const handleLogout = async () => {
+    try {
+      await signOut(auth); // Sign out from Firebase
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out.",
+      });
+      router.replace('/admin'); // Redirect to login page using replace
+    } catch (error) {
+      console.error("Logout Error:", error);
+      toast({
+        variant: "destructive",
+        title: "Logout Failed",
+        description: "An error occurred during logout. Please try again.",
+      });
+    }
   };
 
   return (
@@ -59,14 +69,14 @@ export function AdminHeader({ title }: AdminHeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="icon" className="overflow-hidden rounded-full h-8 w-8">
               <Avatar className="h-8 w-8">
-                 {/* Use a real image source if available */}
-                 {/* <AvatarImage src="https://picsum.photos/32/32" alt="Admin" /> */}
-                <AvatarFallback>AD</AvatarFallback>
+                 {/* Use a real image source if available from Firebase user profile */}
+                 {/* <AvatarImage src={auth.currentUser?.photoURL || undefined} alt="Admin" /> */}
+                <AvatarFallback>{auth.currentUser?.email?.[0]?.toUpperCase() || 'A'}</AvatarFallback> {/* Display first letter of email */}
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Admin Account</DropdownMenuLabel>
+            <DropdownMenuLabel>{auth.currentUser?.email || 'Admin Account'}</DropdownMenuLabel> {/* Display user email */}
             <DropdownMenuSeparator />
              <DropdownMenuItem onClick={() => router.push('/admin/settings')}>
                <Settings className="mr-2 h-4 w-4" />
@@ -77,7 +87,7 @@ export function AdminHeader({ title }: AdminHeaderProps) {
               Profile (Coming Soon)
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer">
                <LogOut className="mr-2 h-4 w-4" />
               Logout
             </DropdownMenuItem>
