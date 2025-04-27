@@ -4,29 +4,34 @@
 import * as React from 'react';
 import { AdminHeader } from '@/components/admin/admin-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-// Import user management components when built (e.g., table, search)
+import { Button } from '@/components/ui/button'; // Import Button
+import Link from 'next/link'; // Import Link
+import { Users } from 'lucide-react'; // Import icon
 
 export default function ManageUsersPage() {
-    // This page will eventually list users and allow admins to manage them.
-    // Fetch user data, display in a table, add actions (edit role, delete, view details).
+    // This page now serves as a placeholder.
+    // User management is handled within the Admin Dashboard tabs.
 
     return (
         <div className="flex flex-col min-h-screen">
             <AdminHeader title="Manage Users" />
-            <main className="flex-1 p-6 md:p-10 bg-muted/30">
-                <Card>
+            <main className="flex-1 p-6 md:p-10 bg-muted/30 flex items-center justify-center">
+                <Card className="w-full max-w-md text-center">
                     <CardHeader>
-                        <CardTitle>User Management</CardTitle>
+                        <CardTitle className="flex items-center justify-center gap-2">
+                            <Users /> User Management
+                        </CardTitle>
                         <CardDescription>
-                            View and manage registered users, their subscription levels, and validation status.
+                            User management is now located in the Admin Dashboard.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-muted-foreground">
-                            User management table and actions are displayed on the "Manage Content & Users" page under the 'Users' tab. This page serves as a placeholder route.
+                        <p className="text-muted-foreground mb-4">
+                            Click the button below to navigate to the dashboard where you can manage users.
                         </p>
-                        {/* Placeholder for User Table Component */}
-                        {/* <UserTable data={users} isLoading={isLoading} /> */}
+                        <Link href="/admin/dashboard?tab=users" passHref> {/* Link to dashboard with user tab preselected */}
+                            <Button>Go to User Management Tab</Button>
+                        </Link>
                     </CardContent>
                 </Card>
             </main>

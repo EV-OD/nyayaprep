@@ -1,3 +1,4 @@
+
 import { db, auth } from './config';
 import {
   collection,
@@ -177,17 +178,20 @@ export const getUserQuizResults = async (userId: string, count?: number): Promis
   } catch (error) {
     const firebaseError = error as Error;
     console.error('Error getting user quiz results: ', firebaseError.message);
-    // Check for specific index error (optional, for better logging)
+    // Check for specific index error
     if (firebaseError.message.includes('requires an index')) {
-       const isBuilding = firebaseError.message.includes('currently building');
-       const indexCreationMessage =
-         `Firestore Query Requires Index: The query to fetch user quiz results needs a composite index:\n` +
-         `Collection: 'quizResults', Fields: 'userId' (Asc), 'completedAt' (Desc).\n`+
-         `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`;
-       console.warn(indexCreationMessage);
-       // Throw or display a user-friendly message indicating the index issue
-       throw new Error(`Firestore Index Missing: Please create the required composite index (userId Asc, completedAt Desc) in your Firebase console for the 'quizResults' collection.`); // Propagate a more informative error
-     }
+      const isBuilding = firebaseError.message.includes('currently building');
+      const indexCreationMessage =
+        `Firestore Query Requires Index: The query to fetch user quiz results needs a composite index:\n` +
+        `Collection: 'quizResults', Fields: 'userId' (Asc), 'completedAt' (Desc).\n`+
+        `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`;
+      console.warn(indexCreationMessage);
+      // Propagate a more informative error, potentially customizing based on whether it's building
+      const userFriendlyMessage = isBuilding
+          ? "The database index needed to fetch quiz results is currently being built. Please try again in a few minutes."
+          : "A required database index (quizResults: userId Asc, completedAt Desc) is missing. Please contact support or create it in the Firebase console.";
+      throw new Error(userFriendlyMessage);
+    }
     // Return empty array on error to prevent breaking the UI if not throwing
     // return [];
     throw error; // Re-throw other errors
@@ -211,6 +215,43 @@ export const isCurrentUserAdmin = async (): Promise<boolean> => {
         console.error("Error checking admin status:", error);
         return false;
     }
+};
+
+/**
+ * Fetches all user profiles from Firestore.
+ * @returns An array of UserProfile objects.
+ */
+export const getAllUsers = async (): Promise<UserProfile[]> => {
+  try {
+    // Optional: Add ordering if needed, e.g., orderBy('createdAt', 'desc')
+    const q = query(usersCollection, orderBy('createdAt', 'desc')); // Example: Order by creation date
+    const querySnapshot = await getDocs(q);
+    const users: UserProfile[] = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      // Perform validation similar to getUserProfile
+      const profile: UserProfile = {
+        uid: data.uid || doc.id, // Use doc.id as fallback if uid field is missing
+        email: data.email || '',
+        name: data.name || 'Unknown User',
+        phone: data.phone || '',
+        role: data.role || 'user',
+        subscription: data.subscription || 'free',
+        profilePicture: data.profilePicture || null,
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(),
+        validated: data.validated === true,
+        askTeacherCount: data.askTeacherCount || 0,
+        lastAskTeacherDate: data.lastAskTeacherDate instanceof Timestamp ? data.lastAskTeacherDate : Timestamp.fromMillis(0),
+        unreadNotifications: data.unreadNotifications || 0,
+        lastNotificationCheck: data.lastNotificationCheck instanceof Timestamp ? data.lastNotificationCheck : Timestamp.now(),
+      };
+      users.push(profile);
+    });
+    return users;
+  } catch (error) {
+    console.error('Error getting all user profiles:', error);
+    throw error; // Re-throw the error for the caller to handle
+  }
 };
 
 
@@ -334,7 +375,7 @@ export const getUserTeacherQuestions = async (userId: string): Promise<TeacherQu
     } catch (error) {
         const firebaseError = error as Error;
         console.error('Error getting user teacher questions: ', firebaseError.message);
-        if (firebaseError.message.includes('requires an index')) {
+         if (firebaseError.message.includes('requires an index')) {
            const isBuilding = firebaseError.message.includes('currently building');
            const indexCreationMessage =
              `Firestore Query Requires Index: The query to fetch user teacher questions needs a composite index:\n` +
@@ -342,7 +383,10 @@ export const getUserTeacherQuestions = async (userId: string): Promise<TeacherQu
              `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`;
            console.warn(indexCreationMessage);
            // Throw or display a user-friendly message indicating the index issue
-           throw new Error(indexCreationMessage); // Propagate a more informative error
+           const userFriendlyMessage = isBuilding
+              ? "The database index needed to fetch your questions is currently being built. Please try again in a few minutes."
+              : "A required database index (teacherQuestions: userId Asc, askedAt Desc) is missing. Please contact support or create it in the Firebase console.";
+           throw new Error(userFriendlyMessage); // Propagate a more informative error
          }
         // Return empty array on error
         // return [];
@@ -390,7 +434,10 @@ export const getPendingTeacherQuestions = async (): Promise<TeacherQuestion[]> =
               `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`;
             console.warn(indexCreationMessage);
             // Throw or display a user-friendly message indicating the index issue
-            throw new Error(indexCreationMessage); // Propagate a more informative error
+             const userFriendlyMessage = isBuilding
+              ? "The database index needed to fetch pending questions is currently being built. Please try again in a few minutes."
+              : "A required database index (teacherQuestions: status Asc, askedAt Asc) is missing. Please contact support or create it in the Firebase console.";
+            throw new Error(userFriendlyMessage); // Propagate a more informative error
          }
          // Return empty on error
          // return [];
@@ -496,6 +543,7 @@ export const addMcq = async (questionData: Omit<Question, 'id' | 'createdAt' | '
 /**
  * Fetches all MCQ questions from the 'mcqs' collection.
  * Optionally orders by creation date.
+ * Requires Firestore index: mcqs(createdAt Desc) if orderByDate is true.
  * @param orderByDate Fetch ordered by createdAt descending?
  * @returns An array of Question objects.
  */
@@ -503,8 +551,10 @@ export const getAllMcqs = async (orderByDate = false): Promise<Question[]> => {
   try {
     let q = query(mcqsCollection);
     if (orderByDate) {
+      // Add ordering and check for index errors specifically for this query
       q = query(q, orderBy('createdAt', 'desc'));
     }
+
     const querySnapshot = await getDocs(q);
     const mcqs: Question[] = [];
     querySnapshot.forEach((doc) => {
@@ -526,8 +576,21 @@ export const getAllMcqs = async (orderByDate = false): Promise<Question[]> => {
     });
     return mcqs;
   } catch (error) {
-    console.error('Error getting all MCQs: ', error);
-    throw error;
+    const firebaseError = error as Error;
+    console.error('Error getting all MCQs: ', firebaseError.message);
+     if (orderByDate && firebaseError.message.includes('requires an index')) {
+        const isBuilding = firebaseError.message.includes('currently building');
+        const indexCreationMessage =
+          `Firestore Query Requires Index: The query to fetch MCQs ordered by date needs an index:\n` +
+          `Collection: 'mcqs', Field: 'createdAt' (Descending).\n`+
+          `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`;
+        console.warn(indexCreationMessage);
+        const userFriendlyMessage = isBuilding
+            ? "The database index needed to sort MCQs is currently being built. Please try again in a few minutes."
+            : "A required database index (mcqs: createdAt Desc) is missing. Please contact support or create it in the Firebase console.";
+        throw new Error(userFriendlyMessage);
+     }
+    throw error; // Re-throw other errors
   }
 };
 
