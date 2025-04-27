@@ -2,7 +2,7 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useEffect, useRef } from 'react'; // Added useRef
+import { useState, useEffect, useRef, useMemo } from 'react'; // Added useRef, useMemo
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,20 +32,31 @@ import { auth } from '@/lib/firebase/config';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import {
     getUserProfile,
-    getUserQuizResults,
+    getUserQuizResults, // Fetch all results for history/stats
     updateAskTeacherUsage,
     saveTeacherQuestion,
     getUserTeacherQuestions,
     clearUserNotifications,
-    handleSubscriptionExpiry // Import expiry handler
-} from '@/lib/firebase/firestore'; // Added saveTeacherQuestion, getUserTeacherQuestions, clearUserNotifications
-import type { UserProfile, QuizResult, SubscriptionPlan, TeacherQuestion } from '@/types/user'; // Import TeacherQuestion
+    handleSubscriptionExpiry,
+    calculateUserPerformanceStats, // Import stats calculation function
+    UserPerformanceStats, // Import stats type
+} from '@/lib/firebase/firestore'; // Added functions
+import type { UserProfile, QuizResult, SubscriptionPlan, TeacherQuestion, Answer } from '@/types/user'; // Import TeacherQuestion, Answer
 import { formatDistanceToNow, isToday, format, differenceInDays } from 'date-fns'; // Added format, differenceInDays
-import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video, History, BarChart2, X, ExternalLink, MessageSquareQuote, HelpCircle, Clock, Check, Bell, CalendarClock, RefreshCw } from 'lucide-react'; // Added Bell, CalendarClock, RefreshCw icon
+import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video, History, BarChart2, X, ExternalLink, MessageSquareQuote, HelpCircle, Clock, Check, Bell, CalendarClock, RefreshCw, BookOpen, TrendingUp } from 'lucide-react'; // Added Bell, CalendarClock, RefreshCw, BookOpen, TrendingUp icons
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { AskTeacherDialog } from '@/components/user/ask-teacher-dialog'; // Import AskTeacherDialog
 import { useToast } from '@/hooks/use-toast'; // Import useToast
+import {
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from "@/components/ui/chart" // Import chart components
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, LabelList } from "recharts" // Import recharts components
 
 // WhatsApp number for validation
 const WHATSAPP_NUMBER = '+97798XXXXXXXX'; // Placeholder number
@@ -100,11 +111,12 @@ const subscriptionDetails: Record<SubscriptionPlan, { name: string; features: { 
 export default function UserDashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [results, setResults] = useState<QuizResult[]>([]);
+  const [results, setResults] = useState<QuizResult[]>([]); // Stores all fetched results for history/stats
+  const [performanceStats, setPerformanceStats] = useState<UserPerformanceStats | null>(null); // State for performance stats
   const [teacherQuestions, setTeacherQuestions] = useState<TeacherQuestion[]>([]); // State for user's asked questions
   const [unreadNotifications, setUnreadNotifications] = useState(0); // State for notification count
   const [loadingProfile, setLoadingProfile] = useState(true);
-  const [loadingResults, setLoadingResults] = useState(true);
+  const [loadingResults, setLoadingResults] = useState(true); // Combined loading for results/stats
   const [loadingTeacherQuestions, setLoadingTeacherQuestions] = useState(true); // Loading state for teacher questions
   const [isAskTeacherDialogOpen, setIsAskTeacherDialogOpen] = useState(false);
   const [canAskTeacher, setCanAskTeacher] = useState(false); // State to control if user can ask based on limit
@@ -141,14 +153,17 @@ export default function UserDashboardPage() {
              const featuresEnabled = userProfile.validated;
 
              // Fetch results and teacher questions based on current plan and validation status
-             const [quizResults, fetchedTeacherQuestions] = await Promise.all([
-                 // Fetch results only if Premium and VALIDATED
-                 (userProfile.subscription === 'premium' && featuresEnabled) ? getUserQuizResults(currentUser.uid, 5) : Promise.resolve([]),
-                 // Fetch teacher questions if Basic/Premium and VALIDATED
-                 ((userProfile.subscription === 'basic' || userProfile.subscription === 'premium') && featuresEnabled) ? getUserTeacherQuestions(currentUser.uid) : Promise.resolve([])
+             const [allQuizResults, fetchedTeacherQuestions, fetchedStats] = await Promise.all([
+                  // Fetch ALL results if Premium and VALIDATED for history/stats
+                  (userProfile.subscription === 'premium' && featuresEnabled) ? getUserQuizResults(currentUser.uid) : Promise.resolve([]),
+                  // Fetch teacher questions if Basic/Premium and VALIDATED
+                  ((userProfile.subscription === 'basic' || userProfile.subscription === 'premium') && featuresEnabled) ? getUserTeacherQuestions(currentUser.uid) : Promise.resolve([]),
+                  // Calculate stats if Premium and VALIDATED
+                  (userProfile.subscription === 'premium' && featuresEnabled) ? calculateUserPerformanceStats(currentUser.uid) : Promise.resolve(null)
              ]);
-             setResults(quizResults);
+             setResults(allQuizResults);
              setTeacherQuestions(fetchedTeacherQuestions); // Set fetched questions
+             setPerformanceStats(fetchedStats); // Set calculated stats
 
              // --- Ask Teacher Usage Check ---
              const todayUsage = userProfile.lastAskTeacherDate && isToday(userProfile.lastAskTeacherDate.toDate())
@@ -165,6 +180,7 @@ export default function UserDashboardPage() {
              // Handle case where profile doesn't exist after login/expiry check
              setResults([]);
              setTeacherQuestions([]);
+             setPerformanceStats(null);
              setCanAskTeacher(false);
              setUnreadNotifications(0);
              setIsValidated(false);
@@ -192,6 +208,7 @@ export default function UserDashboardPage() {
         // User logged out
         setProfile(null);
         setResults([]);
+        setPerformanceStats(null);
         setTeacherQuestions([]); // Clear on logout
         setUnreadNotifications(0); // Reset count
         setCanAskTeacher(false);
@@ -257,9 +274,15 @@ export default function UserDashboardPage() {
 
 
   const calculateAverageScore = () => {
+        // Use pre-calculated stats if available
+        if (performanceStats) {
+            return performanceStats.averageScore;
+        }
+        // Fallback calculation for free/basic or while loading stats
         if (results.length === 0) return 0;
-        const totalPercentage = results.reduce((sum, result) => sum + result.percentage, 0);
-        return Math.round(totalPercentage / results.length);
+        const recentResults = results.slice(0, 5); // Use only last 5 for basic calc
+        const totalPercentage = recentResults.reduce((sum, result) => sum + result.percentage, 0);
+        return Math.round(totalPercentage / recentResults.length);
     };
 
     const getSubscriptionBadgeVariant = (plan?: SubscriptionPlan): "default" | "secondary" | "outline" | "destructive" | null | undefined => {
@@ -317,7 +340,7 @@ export default function UserDashboardPage() {
      // Centralize locking logic based on validation
      const featuresLocked = !isValidated && profile?.subscription !== 'free';
      const contentLocked = profile?.subscription !== 'premium' || featuresLocked;
-     const analyticsLocked = profile?.subscription !== 'premium' || featuresLocked;
+     const historyAndAnalyticsLocked = profile?.subscription !== 'premium' || featuresLocked; // Premium feature lock
      const askTeacherLocked = profile?.subscription === 'free' || featuresLocked; // Lock if free OR if paid but not validated
 
      const askLimit = profile ? currentPlanDetails.askLimit : 0;
@@ -339,13 +362,13 @@ export default function UserDashboardPage() {
     };
 
 
-     const UpgradeAlertDialog = ({ triggerButton }: { triggerButton: React.ReactNode }) => (
+     const UpgradeAlertDialog = ({ triggerButton, featureName }: { triggerButton: React.ReactNode, featureName: string }) => (
         <AlertDialog>
             <AlertDialogTrigger asChild>{triggerButton}</AlertDialogTrigger>
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle className="flex items-center gap-2">
-                        <Lock className="text-primary" /> Feature Locked
+                        <Lock className="text-primary" /> Feature Locked: {featureName}
                     </AlertDialogTitle>
                     <AlertDialogDescription>
                         This feature is exclusive to our validated Premium members. Please upgrade your plan and validate your payment to get access.
@@ -415,6 +438,25 @@ export default function UserDashboardPage() {
 
     const remainingDays = getRemainingDays();
 
+    // Chart Configuration (Example)
+    const chartData = useMemo(() => {
+        // Transform performanceStats.scoreOverTime if needed, or use recent results
+        // Placeholder data for now
+        return [
+            { date: 'Week 1', score: 65 },
+            { date: 'Week 2', score: 72 },
+            { date: 'Week 3', score: 70 },
+            { date: 'Week 4', score: 85 },
+        ];
+    }, [performanceStats]); // Depend on stats
+
+    const chartConfig = {
+        score: {
+            label: "Average Score (%)",
+            color: "hsl(var(--primary))", // Use primary color from theme
+        },
+    } satisfies ChartConfig;
+
 
   return (
     <div className="p-6 md:p-10 space-y-8"> {/* Added space-y */}
@@ -465,23 +507,27 @@ export default function UserDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Average Score Card - Locked for Free/Basic or invalid */}
+        {/* Average Score Card - Basic calculation shown, full stats for Premium */}
          <Card className="lg:col-span-1 relative overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Average Score</CardTitle>
+                 <CardTitle className="text-sm font-medium">
+                      {profile?.subscription === 'premium' && isValidated ? 'Overall Average Score' : 'Recent Average Score'}
+                 </CardTitle>
                 <Target className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent className="relative">
-                  {analyticsLocked && (
+                  {/* Lock overlay only if the detailed analytics section is locked */}
+                  {historyAndAnalyticsLocked && (
                      <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-4 z-10 rounded-b-lg">
                          <Lock size={24} className="text-primary mb-2" />
-                         <p className="text-center text-xs font-semibold mb-2">Available for Premium Users</p>
+                         <p className="text-center text-xs font-semibold mb-2">Detailed stats require Premium</p>
                          <UpgradeAlertDialog
                              triggerButton={<Button variant="default" size="sm"><Zap className="mr-1 h-3 w-3" /> Upgrade</Button>}
+                             featureName="Performance Analytics"
                          />
                      </div>
                   )}
-                   <div className={cn(analyticsLocked ? "opacity-30 pointer-events-none" : "")}>
+                   <div className={cn(historyAndAnalyticsLocked ? "opacity-30 pointer-events-none" : "")}>
                      {loadingResults ? (
                        <Skeleton className="h-8 w-1/4 mb-2" />
                      ) : (
@@ -491,7 +537,10 @@ export default function UserDashboardPage() {
                          <Skeleton className="h-4 w-3/4 mt-1" />
                      ) : (
                          <p className="text-xs text-muted-foreground">
-                             Based on your last {results.length} quiz attempt(s)
+                             {performanceStats
+                               ? `Based on ${performanceStats.totalQuizzes} quiz attempt(s)`
+                               : `Based on last ${results.slice(0,5).length} quiz attempt(s)`
+                              }
                          </p>
                      )}
                      <Progress value={loadingResults ? 0 : calculateAverageScore()} className="w-full mt-3 h-2" />
@@ -537,9 +586,8 @@ export default function UserDashboardPage() {
       </div>
 
 
-      {/* Second Row: Subscription, Recent Activity */}
-      <div className="grid gap-6 lg:grid-cols-3">
-         {/* Subscription Details Card */}
+      {/* Second Row: Subscription Details Card */}
+      <div className="grid gap-6 lg:grid-cols-1">
          <Card className="lg:col-span-1">
              <CardHeader>
                  <CardTitle>Subscription Details</CardTitle>
@@ -612,63 +660,11 @@ export default function UserDashboardPage() {
                  )}
              </CardContent>
          </Card>
-
-         {/* Recent Quiz Results Table Card - Locked for Free/Basic or invalid */}
-         <Card className="lg:col-span-2 relative overflow-hidden">
-           <CardHeader>
-             <CardTitle className="flex items-center gap-2"><History size={20} /> Recent Activity</CardTitle>
-             <CardDescription>Your most recent quiz attempts.</CardDescription>
-           </CardHeader>
-           <CardContent className="relative">
-              {analyticsLocked && (
-                 <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-10 rounded-b-lg">
-                     <Lock size={40} className="text-primary mb-4" />
-                     <p className="text-center font-semibold mb-4">Answer history available for Premium Users.</p>
-                     <UpgradeAlertDialog
-                         triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Now</Button>}
-                     />
-                 </div>
-              )}
-              <div className={cn(analyticsLocked ? "opacity-30 pointer-events-none" : "")}>
-                 {loadingResults ? (
-                   <ResultsTableSkeleton />
-                 ) : results.length > 0 ? (
-                   <Table>
-                     <TableHeader>
-                       <TableRow>
-                         <TableHead>Date</TableHead>
-                         <TableHead>Score</TableHead>
-                         <TableHead>Percentage</TableHead>
-                         <TableHead className="text-right">Questions</TableHead>
-                       </TableRow>
-                     </TableHeader>
-                     <TableBody>
-                       {results.map((result) => (
-                         <TableRow key={result.id}>
-                           <TableCell>
-                             {result.completedAt ? formatDistanceToNow(result.completedAt.toDate(), { addSuffix: true }) : 'N/A'}
-                           </TableCell>
-                           <TableCell>{result.score} / {result.totalQuestions}</TableCell>
-                           <TableCell>
-                             <Badge variant={result.percentage >= 70 ? 'default' : result.percentage >= 40 ? 'secondary' : 'destructive'}>
-                               {result.percentage}%
-                             </Badge>
-                           </TableCell>
-                           <TableCell className="text-right">{result.totalQuestions}</TableCell>
-                         </TableRow>
-                       ))}
-                     </TableBody>
-                   </Table>
-                 ) : (
-                   <p className="text-center text-muted-foreground py-6">No quiz results found yet. Take a quiz to see your progress!</p>
-                 )}
-              </div>
-           </CardContent>
-         </Card>
       </div>
 
-       {/* Third Row: Notes/Resources, Videos */}
-       <div className="grid gap-6 md:grid-cols-2">
+
+      {/* Third Row: Notes/Resources, Videos */}
+      <div className="grid gap-6 md:grid-cols-2">
           {/* Notes & Resources Section */}
           <Card className="relative overflow-hidden flex flex-col">
               <CardHeader>
@@ -682,6 +678,7 @@ export default function UserDashboardPage() {
                          <p className="text-center font-semibold mb-4">Requires validated Premium plan.</p>
                           <UpgradeAlertDialog
                              triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Now</Button>}
+                             featureName="Notes & Resources"
                           />
                      </div>
                  )}
@@ -720,6 +717,7 @@ export default function UserDashboardPage() {
                          <p className="text-center font-semibold mb-4">Requires validated Premium plan.</p>
                          <UpgradeAlertDialog
                              triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Now</Button>}
+                             featureName="Video Lectures"
                          />
                      </div>
                  )}
@@ -737,10 +735,129 @@ export default function UserDashboardPage() {
                    </div>
               </CardContent>
           </Card>
-
        </div>
 
-       {/* Fourth Row: Ask Teacher & My Questions */}
+        {/* Fourth Row: Answer History & Performance Analytics */}
+        <div className="grid gap-6 lg:grid-cols-2">
+             {/* Answer History Section */}
+            <Card className="lg:col-span-1 relative overflow-hidden flex flex-col">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><BookOpen size={20} /> Answer History</CardTitle>
+                    <CardDescription>Review your answers from previous quizzes.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-grow relative">
+                    {historyAndAnalyticsLocked && (
+                        <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-10 rounded-b-lg">
+                            <Lock size={40} className="text-primary mb-4" />
+                            <p className="text-center font-semibold mb-4">Available for Premium Users.</p>
+                            <UpgradeAlertDialog
+                                triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Now</Button>}
+                                featureName="Answer History"
+                            />
+                        </div>
+                    )}
+                    <div className={cn("space-y-3", historyAndAnalyticsLocked ? "opacity-30 pointer-events-none" : "")}>
+                        {loadingResults ? (
+                            <AnswerHistorySkeleton />
+                        ) : results.length > 0 ? (
+                            // Display limited history preview or link to a full history page
+                             <div className="space-y-2">
+                                {results.slice(0, 3).map(result => ( // Show preview of first 3 quizzes
+                                     <Accordion key={result.id} type="single" collapsible className="w-full border rounded-md px-3">
+                                        <AccordionItem value={`result-${result.id}`} className="border-b-0">
+                                          <AccordionTrigger className="text-sm py-2 hover:no-underline">
+                                             Quiz on {format(result.completedAt.toDate(), 'PP')} ({result.score}/{result.totalQuestions})
+                                          </AccordionTrigger>
+                                          <AccordionContent className="text-xs space-y-1 pb-2">
+                                             {result.answers.slice(0, 2).map((ans, idx) => ( // Preview first 2 answers
+                                                 <p key={idx} className={cn("flex items-start gap-1", ans.isCorrect ? "text-green-600" : "text-red-600")}>
+                                                     {ans.isCorrect ? <CheckCircle size={12} className="mt-0.5"/> : <XCircle size={12} className="mt-0.5"/>}
+                                                      <span className="text-muted-foreground line-clamp-1">{ans.questionText}</span>
+                                                 </p>
+                                             ))}
+                                             {result.answers.length > 2 && <p className="text-muted-foreground">...and {result.answers.length - 2} more</p>}
+                                          </AccordionContent>
+                                        </AccordionItem>
+                                     </Accordion>
+                                ))}
+                                {/* TODO: Add button/link to a full answer history page */}
+                                <Button variant="link" size="sm" className="p-0 h-auto text-xs mt-2" disabled={historyAndAnalyticsLocked}>View Full History</Button>
+                             </div>
+                        ) : (
+                            <p className="text-center text-muted-foreground py-6">No quiz history found yet.</p>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+
+             {/* Performance Analytics Section */}
+            <Card className="lg:col-span-1 relative overflow-hidden flex flex-col">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><TrendingUp size={20} /> Performance Analytics</CardTitle>
+                    <CardDescription>Track your progress and identify weak areas.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-grow relative">
+                     {historyAndAnalyticsLocked && (
+                        <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-10 rounded-b-lg">
+                            <Lock size={40} className="text-primary mb-4" />
+                            <p className="text-center font-semibold mb-4">Available for Premium Users.</p>
+                            <UpgradeAlertDialog
+                                triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Now</Button>}
+                                featureName="Performance Analytics"
+                            />
+                        </div>
+                    )}
+                     <div className={cn("space-y-4", historyAndAnalyticsLocked ? "opacity-30 pointer-events-none" : "")}>
+                        {loadingResults ? (
+                           <PerformanceAnalyticsSkeleton />
+                        ) : performanceStats ? (
+                            <>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div className="flex flex-col items-center p-3 border rounded-md">
+                                        <span className="text-xs text-muted-foreground">Accuracy</span>
+                                        <span className="text-lg font-bold">{performanceStats.accuracy}%</span>
+                                    </div>
+                                     <div className="flex flex-col items-center p-3 border rounded-md">
+                                        <span className="text-xs text-muted-foreground">Avg. Score</span>
+                                        <span className="text-lg font-bold">{performanceStats.averageScore}%</span>
+                                    </div>
+                                     <div className="flex flex-col items-center p-3 border rounded-md">
+                                        <span className="text-xs text-muted-foreground">Quizzes Taken</span>
+                                        <span className="text-lg font-bold">{performanceStats.totalQuizzes}</span>
+                                    </div>
+                                    <div className="flex flex-col items-center p-3 border rounded-md">
+                                        <span className="text-xs text-muted-foreground">Questions</span>
+                                        <span className="text-lg font-bold">{performanceStats.totalQuestions}</span>
+                                    </div>
+                                </div>
+                                {/* Example Chart (Score Over Time - Placeholder) */}
+                                <div className="mt-4">
+                                    <h4 className="text-sm font-medium mb-2 text-center">Score Trend (Example)</h4>
+                                     <ChartContainer config={chartConfig} className="h-[150px] w-full">
+                                        <BarChart accessibilityLayer data={chartData} margin={{ top: 20, left:-10, right: 0, bottom: 0 }}>
+                                            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                                            <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={10} />
+                                            <YAxis hide={true} domain={[0, 100]} />
+                                            <ChartTooltip content={<ChartTooltipContent hideIndicator />} />
+                                            <Bar dataKey="score" fill="var(--color-score)" radius={4}>
+                                                <LabelList position="top" offset={5} fontSize={10} fill="hsl(var(--foreground))" />
+                                            </Bar>
+                                        </BarChart>
+                                    </ChartContainer>
+                                    {/* TODO: Add Category Stats breakdown */}
+                                     <Button variant="link" size="sm" className="p-0 h-auto text-xs mt-2" disabled={historyAndAnalyticsLocked}>View Detailed Analytics</Button>
+                                </div>
+                            </>
+                        ) : (
+                            <p className="text-center text-muted-foreground py-6">Take some quizzes to see your analytics.</p>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+
+
+       {/* Fifth Row: Ask Teacher & My Questions */}
        <div className="grid gap-6 lg:grid-cols-2">
             {/* Ask Teacher Section */}
              <Card className="relative overflow-hidden flex flex-col">
@@ -755,6 +872,7 @@ export default function UserDashboardPage() {
                          <p className="text-center font-semibold mb-4">Available for Basic & Premium plans.</p>
                           <UpgradeAlertDialog
                              triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Plan</Button>}
+                              featureName="Ask a Teacher"
                           />
                           {featuresLocked && profile?.subscription !== 'free' && <p className="text-xs text-muted-foreground mt-2">Account validation pending or expired.</p>}
                      </div>
@@ -794,6 +912,7 @@ export default function UserDashboardPage() {
                           <p className="text-center font-semibold mb-4">Available for Basic & Premium plans.</p>
                            <UpgradeAlertDialog
                               triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Plan</Button>}
+                               featureName="My Questions"
                           />
                            {featuresLocked && profile?.subscription !== 'free' && <p className="text-xs text-muted-foreground mt-2">Account validation pending or expired.</p>}
                       </div>
@@ -822,7 +941,7 @@ export default function UserDashboardPage() {
                                        </div>
                                    </AccordionTrigger>
                                    <AccordionContent className="text-sm text-muted-foreground px-4 pt-2 pb-4 space-y-2"> {/* Adjusted padding */}
-                                       <p><strong>Asked:</strong> {q.askedAt ? format(q.askedAt.toDate(), 'PPP p') : 'N/A'}</p>
+                                       <p><strong>Asked:</strong> {q.askedAt ? format(q.askedAt.toDate(), 'PPp') : 'N/A'}</p>
                                        {q.status === 'answered' && q.answerText ? (
                                            <>
                                            <p><strong>Answered:</strong> {q.answeredAt ? format(q.answeredAt.toDate(), 'PPP p') : 'N/A'}</p>
@@ -863,21 +982,7 @@ export default function UserDashboardPage() {
   );
 }
 
-function ResultsTableSkeleton() {
-    return (
-         <div className="space-y-4">
-           <Skeleton className="h-8 w-full rounded" />
-            {[...Array(3)].map((_, i) => (
-                <div key={i} className="flex justify-between items-center p-2 border-b">
-                  <Skeleton className="h-4 w-1/4 rounded" />
-                  <Skeleton className="h-4 w-1/6 rounded" />
-                   <Skeleton className="h-6 w-12 rounded-full" />
-                  <Skeleton className="h-4 w-1/6 rounded" />
-                </div>
-            ))}
-         </div>
-    );
-}
+// --- Skeleton Components ---
 
 function SubscriptionSkeleton() {
     return (
@@ -907,6 +1012,34 @@ function MyQuestionsSkeleton() {
                     <Skeleton className="h-6 w-20 rounded-full" />
                 </div>
             ))}
+        </div>
+    );
+}
+
+function AnswerHistorySkeleton() {
+    return (
+        <div className="space-y-3">
+            {[...Array(3)].map((_, i) => (
+                 <div key={i} className="flex items-center justify-between p-3 border rounded-lg">
+                    <Skeleton className="h-4 w-2/3" />
+                     <Skeleton className="h-4 w-1/6" />
+                 </div>
+            ))}
+        </div>
+    );
+}
+
+function PerformanceAnalyticsSkeleton() {
+    return (
+        <div className="space-y-4">
+           <div className="grid grid-cols-2 gap-4">
+               <Skeleton className="h-16 w-full rounded-md" />
+               <Skeleton className="h-16 w-full rounded-md" />
+               <Skeleton className="h-16 w-full rounded-md" />
+               <Skeleton className="h-16 w-full rounded-md" />
+           </div>
+            <Skeleton className="h-4 w-1/3 mx-auto" />
+            <Skeleton className="h-[150px] w-full rounded-md" />
         </div>
     );
 }

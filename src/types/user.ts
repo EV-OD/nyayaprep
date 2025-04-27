@@ -1,5 +1,5 @@
 
-import type { Answer } from './quiz';
+import type { Answer } from './quiz'; // Ensure this points to the updated Answer type
 import type { Timestamp } from 'firebase/firestore';
 
 export type SubscriptionPlan = 'free' | 'basic' | 'premium';
@@ -22,13 +22,15 @@ export interface UserProfile {
 }
 
 export interface QuizResult {
-  id?: string;
+  id?: string; // Document ID from Firestore
   userId: string;
   score: number;
   totalQuestions: number;
   percentage: number;
-  answers: Answer[];
+  answers: Answer[]; // Use the updated Answer interface from quiz.ts
   completedAt: Timestamp;
+  // Optional: Add category/topic if quizzes are themed
+  // category?: string;
 }
 
 // Interface for the 'Ask a Teacher' feature

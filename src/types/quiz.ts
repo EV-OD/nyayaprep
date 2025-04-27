@@ -25,9 +25,10 @@ export interface Question {
 
 export interface Answer {
   questionId: string;
+  questionText: string; // Store the question text (in the language it was asked)
   selectedAnswer: string; // Store the selected answer text (in the language it was selected)
+  correctAnswerText: string; // Store the correct answer text (in the language it was asked)
   isCorrect: boolean;
-  correctAnswerText?: string; // Optional: Store the text of the correct answer for review display
 }
 
 export type Language = 'en' | 'ne';
