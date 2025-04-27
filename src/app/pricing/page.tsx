@@ -5,7 +5,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Check, Star, X, Award, MessageSquareQuestion } from 'lucide-react'; // Added MessageSquareQuestion icon
+import { Check, Star, X, Award, MessageSquareQuote } from 'lucide-react'; // Use MessageSquareQuote
 import { cn } from '@/lib/utils';
 import { PublicNavbar } from '@/components/layout/public-navbar'; // Import PublicNavbar
 
@@ -20,7 +20,7 @@ const plans = [
       { text: 'Answer History Tracking', included: false },
       { text: 'Performance Analytics', included: false },
       { text: 'Downloadable Notes & PDFs', included: false },
-      { text: 'Ask Teacher (0 questions/day)', included: false }, // Added Ask Teacher
+      { text: 'Ask Teacher (0 questions/day)', included: false }, // Updated Ask Teacher limit
       { text: 'Basic Support', included: true },
     ],
     planId: 'free',
@@ -37,7 +37,7 @@ const plans = [
       { text: 'Answer History Tracking', included: false },
       { text: 'Performance Analytics', included: false },
       { text: 'Downloadable Notes & PDFs', included: false },
-      { text: 'Ask Teacher (2 questions/day)', included: true }, // Added Ask Teacher
+      { text: 'Ask Teacher (2 questions/day)', included: true }, // Updated Ask Teacher limit
       { text: 'Basic Support', included: true },
     ],
     planId: 'basic',
@@ -56,7 +56,7 @@ const plans = [
       { text: 'Answer History Tracking', included: true },
       { text: 'Performance Analytics', included: true },
       { text: 'Downloadable Notes & PDFs', included: true },
-      { text: 'Ask Teacher (20 questions/day)', included: true }, // Added Ask Teacher
+      { text: 'Ask Teacher (20 questions/day)', included: true }, // Updated Ask Teacher limit
       { text: 'Priority Support', included: true },
     ],
     planId: 'premium',
@@ -142,3 +142,6 @@ export default function PricingPage() {
     </div>
   );
 }
+
+
+    
