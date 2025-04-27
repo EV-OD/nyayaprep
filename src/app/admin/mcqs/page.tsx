@@ -1,9 +1,10 @@
 
+
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
-import { PlusCircle, Edit, Trash2, Languages, Filter, Search, Loader2, Star, CheckCircle, AlertTriangle, HelpCircle, Send, Clock, Check } from 'lucide-react'; // Added new icons
+import { PlusCircle, Edit, Trash2, Languages, Filter, Search, Loader2, Star, CheckCircle, AlertTriangle, HelpCircle, Send, Clock, Check, X, Bell, Users } from 'lucide-react'; // Added new icons
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea'; // Added Textarea for answers
@@ -58,28 +59,28 @@ const dummyMCQs: Question[] = [
       ne: 'नेपालको संविधानको कुन धाराले स्वतन्त्रताको हकको प्रत्याभूति गरेको छ?',
     },
     options: { en: ['Art 16', 'Art 17', 'Art 18', 'Art 19'], ne: ['धारा १६', 'धारा १७', 'धारा १८', 'धारा १९'] },
-    correctAnswer: { en: 'Article 17', ne: 'धारा १७' },
+    correctAnswer: { en: 'Art 17', ne: 'धारा १७' }, // Corrected dummy answer format
   },
   {
     id: '2',
     category: 'Legal Theory',
     question: { en: 'Who is considered the father of the theory of Natural Law?', ne: 'प्राकृतिक कानूनको सिद्धान्तका पिता कसलाई मानिन्छ?' },
     options: { en: ['Austin', 'Aquinas', 'Bentham', 'Hart'], ne: ['अस्टिन', 'एक्विनास', 'बेन्थम', 'हार्ट'] },
-    correctAnswer: { en: 'Thomas Aquinas', ne: 'थोमस एक्विनास' },
+    correctAnswer: { en: 'Aquinas', ne: 'एक्विनास' }, // Corrected dummy answer format
   },
    {
     id: '3',
     category: 'Criminal Law',
     question: { en: 'What does "mens rea" refer to?', ne: '"मेन्स रिया" भन्नाले के बुझिन्छ?' },
     options: { en: ['Guilty act', 'Guilty mind', 'Burden of proof', 'Standard'], ne: ['कार्य', 'मनसाय', 'भार', 'स्तर'] },
-    correctAnswer: { en: 'The guilty mind', ne: 'दोषपूर्ण मनसाय' },
+    correctAnswer: { en: 'Guilty mind', ne: 'दोषपूर्ण मनसाय' }, // Corrected dummy answer format
   },
    {
     id: '4',
     category: 'Constitutional Law',
     question: { en: 'How many fundamental rights are enshrined in the Constitution of Nepal (2015)?', ne: 'नेपालको संविधान (२०७२) मा कतिवटा मौलिक हकहरू सुनिश्चित गरिएका छन्?' },
     options: { en: ['28', '31', '33', '35'], ne: ['२८', '३१', '३३', '३५'] },
-    correctAnswer: { en: '31', ne: '३१' },
+    correctAnswer: { en: '31', ne: '३१' }, // Corrected dummy answer format
   },
 ];
 
@@ -165,7 +166,14 @@ export default function ManageMCQsPage() {
              setTeacherQuestions(fetchedQuestions);
          } catch (err) {
              console.error("Failed to fetch teacher questions:", err);
-             setError("Failed to load pending questions. Please try again.");
+              setError("Failed to load pending questions. Please try again.");
+              // Log the specific error if it's about missing index
+             const firebaseError = err as Error;
+             if (firebaseError.message.includes('requires an index')) {
+                 console.warn(
+                     `Firestore Index Required: The query for pending teacher questions needs a composite index on 'teacherQuestions' collection: status (Ascending), askedAt (Ascending). Please create it in the Firebase console.`
+                 );
+             }
          } finally {
              setIsLoadingTeacherQuestions(false);
          }
@@ -179,7 +187,7 @@ export default function ManageMCQsPage() {
         if (users.length === 0) fetchUsersData();
          else setIsLoadingUsers(false);
     } else if (activeTab === 'teacherQuestions') {
-        // Fetch teacher questions regardless of current length to get updates
+        // Fetch teacher questions only when tab is active
         fetchTeacherQuestionsData();
     }
   }, [activeTab]); // Removed length dependencies to allow refetching
@@ -240,8 +248,16 @@ export default function ManageMCQsPage() {
         }
         setIsSubmittingAnswer(true);
         try {
-            await answerTeacherQuestion(selectedQuestionToAnswer.id!, answerText, currentAdminUid);
-            toast({ title: "Answer Submitted", description: `Answer provided for question ID ${selectedQuestionToAnswer.id}.` });
+             // TODO: Fetch the user profile to increment notification count
+            const userProfile = await getUserProfile(selectedQuestionToAnswer.userId);
+
+            await answerTeacherQuestion(
+                selectedQuestionToAnswer.id!,
+                answerText,
+                currentAdminUid,
+                userProfile?.unreadNotifications // Pass current count
+             );
+            toast({ title: "Answer Submitted", description: `Answer provided for question ID ${selectedQuestionToAnswer.id}. User notified.` });
 
             // Remove the answered question from the local state
             setTeacherQuestions(prev => prev.filter(q => q.id !== selectedQuestionToAnswer.id));
@@ -289,21 +305,40 @@ export default function ManageMCQsPage() {
      (user.phone?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
-  const filteredTeacherQuestions = teacherQuestions.filter(q =>
-     q.questionText.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     (q.userName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-     (q.userEmail?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-  );
+   // Group pending questions by user ID for the specific display format
+   const groupedTeacherQuestions = React.useMemo(() => {
+        return teacherQuestions
+         .filter(q => q.status === 'pending') // Only show pending
+         .filter(q => // Filter by search term
+             q.questionText.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             (q.userName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+             (q.userEmail?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+         )
+         .reduce((acc, q) => {
+             if (!acc[q.userId]) {
+                 acc[q.userId] = {
+                     userName: q.userName || 'Unknown User',
+                     userEmail: q.userEmail || 'No Email',
+                     userId: q.userId,
+                     questions: [],
+                     // Fetch user profile to get subscription (can be optimized)
+                     subscription: users.find(u => u.uid === q.userId)?.subscription || 'free'
+                 };
+             }
+             acc[q.userId].questions.push(q);
+             return acc;
+         }, {} as Record<string, { userName: string; userEmail: string; userId: string, questions: TeacherQuestion[], subscription: SubscriptionPlan }>);
+    }, [teacherQuestions, searchTerm, users]); // Depend on users state too for subscription info
 
    const isAllSelected = filteredMcqs.length > 0 && selectedMcqs.size === filteredMcqs.length;
    const isIndeterminate = selectedMcqs.size > 0 && selectedMcqs.size < filteredMcqs.length;
 
    const getSubscriptionBadgeDetails = (plan?: SubscriptionPlan) => {
         switch (plan) {
-            case 'premium': return { variant: 'default', colorClass: 'bg-yellow-100 text-yellow-800 border-yellow-300', icon: <Star className="mr-1 h-3 w-3 fill-current" /> }; // Gold
-            case 'basic': return { variant: 'secondary', colorClass: 'bg-green-100 text-green-800 border-green-300', icon: null }; // Green
-            case 'free': return { variant: 'outline', colorClass: 'bg-gray-100 text-gray-800 border-gray-300', icon: null }; // Gray
-            default: return { variant: 'outline', colorClass: 'bg-gray-100 text-gray-800 border-gray-300', icon: null };
+            case 'premium': return { variant: 'default', colorClass: 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700', icon: <Star className="mr-1 h-3 w-3 fill-current" /> };
+            case 'basic': return { variant: 'secondary', colorClass: 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700', icon: null };
+            case 'free': return { variant: 'outline', colorClass: 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700', icon: null };
+            default: return { variant: 'outline', colorClass: 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700', icon: null };
         }
     };
 
@@ -325,10 +360,10 @@ export default function ManageMCQsPage() {
       const getStatusBadge = (status: TeacherQuestion['status']) => {
          switch (status) {
              case 'pending':
-                 return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300"><Clock size={12} className="mr-1"/> Pending</Badge>;
+                 return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700"><Clock size={12} className="mr-1"/> Pending</Badge>;
              case 'answered': // Should not appear in this table, but good practice
-                 return <Badge variant="default" className="bg-green-100 text-green-800 border-green-300"><Check size={12} className="mr-1"/> Answered</Badge>;
-             case 'rejected': // Should not appear in this table
+                 return <Badge variant="default" className="bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700"><Check size={12} className="mr-1"/> Answered</Badge>;
+             case 'rejected': // Can be added later if needed
                  return <Badge variant="destructive"><X size={12} className="mr-1"/> Rejected</Badge>;
              default:
                  return <Badge variant="secondary">Unknown</Badge>;
@@ -351,7 +386,7 @@ export default function ManageMCQsPage() {
                              : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                      )}
                  >
-                     Manage MCQs
+                    <ListChecks size={16} className="inline mr-1 mb-0.5"/> Manage MCQs
                  </button>
                  <button
                      onClick={() => setActiveTab('users')}
@@ -362,7 +397,7 @@ export default function ManageMCQsPage() {
                              : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                      )}
                  >
-                     Manage Users
+                     <Users size={16} className="inline mr-1 mb-0.5"/> Manage Users
                  </button>
                   <button
                      onClick={() => setActiveTab('teacherQuestions')}
@@ -373,7 +408,7 @@ export default function ManageMCQsPage() {
                              : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                      )}
                  >
-                     Teacher Questions ({isLoadingTeacherQuestions ? '...' : filteredTeacherQuestions.length})
+                     <HelpCircle size={16} className="inline mr-1 mb-0.5"/> User Questions ({isLoadingTeacherQuestions ? '...' : Object.keys(groupedTeacherQuestions).reduce((sum, userId) => sum + groupedTeacherQuestions[userId].questions.length, 0)})
                  </button>
              </nav>
          </div>
@@ -441,7 +476,7 @@ export default function ManageMCQsPage() {
          )}
 
 
-         {/* Conditional Table Rendering */}
+         {/* Conditional Table/View Rendering */}
          {activeTab === 'mcqs' && (
              isLoadingMCQs ? <MCQTableSkeleton /> : !error && (
                  <Card className="overflow-hidden border shadow-sm">
@@ -635,61 +670,74 @@ export default function ManageMCQsPage() {
              )
          )}
 
-          {activeTab === 'teacherQuestions' && (
-             isLoadingTeacherQuestions ? <TeacherQuestionsSkeleton /> : !error && (
-                <Card className="overflow-hidden border shadow-sm">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="min-w-[200px]">Question</TableHead>
-                                <TableHead>Asked By</TableHead>
-                                <TableHead>Date Asked</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right w-[100px]">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {filteredTeacherQuestions.length > 0 ? (
-                                filteredTeacherQuestions.map((q) => (
-                                    <TableRow key={q.id}>
-                                        <TableCell className="font-medium">
-                                             <span title={q.questionText} className="line-clamp-2">
-                                               {q.questionText}
-                                             </span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="text-sm">{q.userName || 'N/A'}</div>
-                                             <div className="text-xs text-muted-foreground">{q.userEmail || 'N/A'}</div>
-                                        </TableCell>
-                                        <TableCell>
-                                             {q.askedAt ? format(q.askedAt.toDate(), 'PPp') : 'N/A'}
-                                        </TableCell>
-                                        <TableCell>{getStatusBadge(q.status)}</TableCell>
-                                        <TableCell className="text-right">
-                                             <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => handleOpenAnswerDialog(q)}
-                                            >
-                                                <Send className="mr-1 h-3.5 w-3.5" /> Answer
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                                         {teacherQuestions.length === 0 ? "No pending questions." : "No questions found matching your search criteria."}
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </Card>
+         {/* User Questions Tab */}
+         {activeTab === 'teacherQuestions' && (
+            isLoadingTeacherQuestions ? <TeacherQuestionsSkeleton /> : !error && (
+                <div className="space-y-6">
+                    {Object.keys(groupedTeacherQuestions).length > 0 ? (
+                         Object.entries(groupedTeacherQuestions).map(([userId, userData]) => {
+                            const planDetails = getSubscriptionBadgeDetails(userData.subscription);
+                            return (
+                                 <Card key={userId} className="border shadow-sm">
+                                    <CardHeader className="bg-muted/30 p-4 border-b">
+                                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                             <div>
+                                                 <CardTitle className="text-base font-semibold">{userData.userName}</CardTitle>
+                                                 <CardDescription className="text-xs">{userData.userEmail}</CardDescription>
+                                             </div>
+                                             <Badge variant={planDetails.variant} className={cn("capitalize text-xs w-fit", planDetails.colorClass)}>
+                                                 {planDetails.icon}
+                                                 {userData.subscription || 'Free'}
+                                             </Badge>
+                                         </div>
+                                    </CardHeader>
+                                    <CardContent className="p-4 space-y-3">
+                                         {userData.questions.map((q) => (
+                                            <div key={q.id} className="border p-3 rounded-md bg-background">
+                                                 <p className="text-sm mb-2"><strong>Question:</strong> {q.questionText}</p>
+                                                 <div className="flex justify-between items-center text-xs text-muted-foreground mb-3">
+                                                     <span>Asked: {q.askedAt ? format(q.askedAt.toDate(), 'PPp') : 'N/A'}</span>
+                                                     {getStatusBadge(q.status)}
+                                                 </div>
+                                                 {/* Direct Answer Input */}
+                                                  <div className="mt-2">
+                                                     <Textarea
+                                                        id={`answer-${q.id}`}
+                                                        placeholder="Write your answer here..."
+                                                        rows={3}
+                                                        className="text-sm mb-2"
+                                                        // Store temporary answer locally or manage state globally if needed
+                                                        // For simplicity, we'll handle it in the dialog/submit function
+                                                      />
+                                                     <Button
+                                                         size="sm"
+                                                         variant="default"
+                                                         onClick={() => handleOpenAnswerDialog(q)}
+                                                         className="bg-primary hover:bg-primary/90"
+                                                     >
+                                                         <Send className="mr-1 h-3.5 w-3.5" /> Answer
+                                                     </Button>
+                                                      {/* <Button size="sm" variant="outline" className="ml-2">Reply Later</Button> */}
+                                                  </div>
+                                            </div>
+                                         ))}
+                                    </CardContent>
+                                 </Card>
+                            );
+                         })
+                    ) : (
+                         <Card className="text-center text-muted-foreground py-10 border shadow-sm">
+                            <CardContent>
+                                {teacherQuestions.length === 0 ? "No pending questions from users." : "No pending questions found matching your search."}
+                            </CardContent>
+                         </Card>
+                    )}
+                </div>
              )
          )}
 
-         {/* Answer Dialog */}
+
+         {/* Answer Dialog (Reused for Direct Input Trigger) */}
          <Dialog open={answerDialogOpen} onOpenChange={setAnswerDialogOpen}>
            <DialogContent className="sm:max-w-[600px]">
              <DialogHeader>
@@ -712,6 +760,7 @@ export default function ManageMCQsPage() {
                     value={answerText}
                     onChange={(e) => setAnswerText(e.target.value)}
                     disabled={isSubmittingAnswer}
+                    className="text-sm" // Ensure textarea matches direct input style
                 />
              </div>
              <DialogFooter>
@@ -727,7 +776,7 @@ export default function ManageMCQsPage() {
                  className="bg-primary hover:bg-primary/90"
                >
                  {isSubmittingAnswer ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                 {isSubmittingAnswer ? 'Submitting...' : 'Submit Answer'}
+                 {isSubmittingAnswer ? 'Submitting...' : 'Submit Answer & Notify'}
                </Button>
              </DialogFooter>
            </DialogContent>
@@ -811,36 +860,40 @@ function UserTableSkeleton() {
     );
 }
 
+// Skeleton for the grouped user questions view
 function TeacherQuestionsSkeleton() {
     return (
-         <Card className="overflow-hidden border shadow-sm">
-        <Table>
-            <TableHeader>
-                <TableRow>
-                    <TableHead><Skeleton className="h-4 w-1/2" /></TableHead>
-                    <TableHead><Skeleton className="h-4 w-1/4" /></TableHead>
-                    <TableHead><Skeleton className="h-4 w-1/6" /></TableHead>
-                    <TableHead><Skeleton className="h-4 w-1/6" /></TableHead>
-                    <TableHead className="text-right w-[100px]"><Skeleton className="h-4 w-16 ml-auto" /></TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {[...Array(5)].map((_, i) => (
-                    <TableRow key={i}>
-                        <TableCell><Skeleton className="h-4 w-full" /></TableCell>
-                        <TableCell>
-                             <Skeleton className="h-4 w-3/4 mb-1" />
-                             <Skeleton className="h-3 w-1/2" />
-                        </TableCell>
-                         <TableCell><Skeleton className="h-4 w-full" /></TableCell>
-                         <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
-                        <TableCell className="text-right">
-                           <Skeleton className="h-8 w-20 rounded-md ml-auto" />
-                        </TableCell>
-                    </TableRow>
-                ))}
-            </TableBody>
-        </Table>
-        </Card>
+        <div className="space-y-6">
+            {[...Array(2)].map((_, userIndex) => (
+                <Card key={userIndex} className="border shadow-sm">
+                     <CardHeader className="bg-muted/30 p-4 border-b">
+                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                             <div>
+                                 <Skeleton className="h-5 w-32 mb-1" />
+                                 <Skeleton className="h-3 w-40" />
+                             </div>
+                             <Skeleton className="h-6 w-20 rounded-full" />
+                         </div>
+                     </CardHeader>
+                     <CardContent className="p-4 space-y-3">
+                        {[...Array(2)].map((_, qIndex) => (
+                             <div key={qIndex} className="border p-3 rounded-md bg-background">
+                                <Skeleton className="h-4 w-full mb-2" />
+                                <div className="flex justify-between items-center text-xs mb-3">
+                                    <Skeleton className="h-3 w-1/4" />
+                                    <Skeleton className="h-5 w-16 rounded-full" />
+                                </div>
+                                <div className="mt-2 space-y-2">
+                                    <Skeleton className="h-16 w-full" />
+                                     <Skeleton className="h-8 w-24 rounded-md" />
+                                </div>
+                             </div>
+                         ))}
+                     </CardContent>
+                </Card>
+             ))}
+        </div>
     );
 }
+
+```
