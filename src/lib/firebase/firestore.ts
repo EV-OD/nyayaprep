@@ -168,14 +168,16 @@ export const getUserQuizResults = async (userId: string, count?: number): Promis
   } catch (error) {
     const firebaseError = error as Error;
     console.error('Error getting user quiz results: ', firebaseError.message);
+    // Check for specific index error (optional, for better logging)
     if (firebaseError.message.includes('requires an index')) {
         console.warn(
           `Firestore Query Requires Index: The query to fetch user quiz results needs a composite index:\n` +
           `Collection: 'quizResults', Fields: 'userId' (Asc), 'completedAt' (Desc).\n`+
-          `Please create this index in your Firebase console using the link provided in the error message, or manually. Ensure the index is fully built before retrying.`
+          `Please create this index in your Firebase console. If you just created it, please wait a few minutes for it to finish building before retrying.`
         );
     }
-     return []; // Return empty array on error
+    // Return empty array on error to prevent breaking the UI
+    return [];
   }
 };
 
@@ -320,10 +322,11 @@ export const getUserTeacherQuestions = async (userId: string): Promise<TeacherQu
         const firebaseError = error as Error;
         console.error('Error getting user teacher questions: ', firebaseError.message);
         if (firebaseError.message.includes('requires an index')) {
+           const isBuilding = firebaseError.message.includes('currently building');
            console.warn(
              `Firestore Query Requires Index: The query to fetch user teacher questions needs a composite index:\n` +
              `Collection: 'teacherQuestions', Fields: 'userId' (Ascending), 'askedAt' (Descending).\n`+
-             `Please create this index in your Firebase console using the link provided in the error message, or manually. Ensure the index is fully built before retrying.`
+             `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`
            );
         }
         return []; // Return empty on error
@@ -363,10 +366,11 @@ export const getPendingTeacherQuestions = async (): Promise<TeacherQuestion[]> =
          const firebaseError = error as Error;
          console.error('Error getting pending teacher questions: ', firebaseError.message);
          if (firebaseError.message.includes('requires an index')) {
+            const isBuilding = firebaseError.message.includes('currently building');
             console.warn(
               `Firestore Query Requires Index: The query to fetch pending teacher questions needs a composite index:\n` +
               `Collection: 'teacherQuestions', Fields: 'status' (Ascending), 'askedAt' (Ascending).\n`+
-              `Please create this index in your Firebase console using the link provided in the error message, or manually. Ensure the index is fully built before retrying.`
+              `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`
             );
          }
          return []; // Return empty on error
@@ -400,4 +404,3 @@ export const answerTeacherQuestion = async (questionId: string, answerText: stri
 };
 
 
-    
