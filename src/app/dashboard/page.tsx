@@ -43,7 +43,7 @@ import {
 } from '@/lib/firebase/firestore'; // Added functions
 import type { UserProfile, QuizResult, SubscriptionPlan, TeacherQuestion, Answer } from '@/types/user'; // Import TeacherQuestion, Answer
 import { formatDistanceToNow, isToday, format, differenceInDays } from 'date-fns'; // Added format, differenceInDays
-import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video, History, BarChart2, X, ExternalLink, MessageSquareQuote, HelpCircle, Clock, Check, Bell, CalendarClock, RefreshCw, BookOpen, TrendingUp } from 'lucide-react'; // Added Bell, CalendarClock, RefreshCw, BookOpen, TrendingUp icons
+import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video, History, BarChart2, X, ExternalLink, MessageSquareQuote, HelpCircle, Clock, Check, Bell, CalendarClock, RefreshCw, BookOpen, TrendingUp,XCircle } from 'lucide-react'; // Added Bell, CalendarClock, RefreshCw, BookOpen, TrendingUp icons
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { AskTeacherDialog } from '@/components/user/ask-teacher-dialog'; // Import AskTeacherDialog
