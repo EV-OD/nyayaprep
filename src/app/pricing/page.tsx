@@ -5,7 +5,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Check, Star, X } from 'lucide-react'; // Added X for features not included
+import { Check, Star, X, Award } from 'lucide-react'; // Added Award icon
 import { cn } from '@/lib/utils';
 import { PublicNavbar } from '@/components/layout/public-navbar'; // Import PublicNavbar
 
@@ -13,13 +13,14 @@ const plans = [
   {
     name: 'Free',
     price: 'NRS 0',
-    period: '/ month',
-    description: 'Get started with basic access.',
+    period: '/ forever', // Changed period for clarity
+    description: 'Start learning with basic access.',
     features: [
-      { text: '20 questions/day', included: true },
-      { text: 'Access to premium content', included: false },
-      { text: 'Notes & PDF downloads', included: false },
-      { text: 'Basic support', included: true },
+      { text: '2 Quizzes per day (10 questions each)', included: true },
+      { text: 'Answer History Tracking', included: false },
+      { text: 'Performance Analytics', included: false },
+      { text: 'Downloadable Notes & PDFs', included: false },
+      { text: 'Basic Support', included: true },
     ],
     planId: 'free',
     cta: 'Register for Free',
@@ -27,18 +28,21 @@ const plans = [
   },
   {
     name: 'Basic',
-    price: 'NRS 20',
+    price: 'NRS 50',
     period: '/ week',
     description: 'More practice for regular learners.',
     features: [
-      { text: '100 questions/day (80 more than Free)', included: true },
-      { text: 'Access to premium content', included: false },
-      { text: 'Notes & PDF downloads', included: false },
-      { text: 'Basic support', included: true },
+      { text: '5 Quizzes per day (10 questions each)', included: true },
+      { text: 'Answer History Tracking', included: false },
+      { text: 'Performance Analytics', included: false },
+      { text: 'Downloadable Notes & PDFs', included: false },
+      { text: 'Basic Support', included: true },
     ],
     planId: 'basic',
     cta: 'Choose Basic',
-    highlight: false, // Can be highlighted if desired
+    highlight: true, // Highlight Basic as Most Popular
+    badge: 'Most Popular',
+    badgeIcon: <Award size={12} className="fill-current" />, // Use Award icon
   },
   {
     name: 'Premium',
@@ -46,15 +50,17 @@ const plans = [
     period: '/ week',
     description: 'Unlimited access and all features.',
     features: [
-      { text: 'Unlimited quiz access', included: true },
-      { text: 'Access to all premium content', included: true },
-      { text: 'Downloadable notes & PDFs', included: true },
-      { text: 'Priority support', included: true },
+      { text: 'Unlimited Quizzes (10 questions each)', included: true },
+      { text: 'Answer History Tracking', included: true },
+      { text: 'Performance Analytics', included: true },
+      { text: 'Downloadable Notes & PDFs', included: true },
+      { text: 'Priority Support', included: true },
     ],
     planId: 'premium',
     cta: 'Go Premium',
-    highlight: true, // Highlight the premium plan
+    highlight: true, // Highlight Premium as Best Value
     badge: 'Best Value',
+    badgeIcon: <Star size={12} className="fill-current" />, // Use Star icon
   },
 ];
 
@@ -76,17 +82,17 @@ export default function PricingPage() {
               key={plan.planId}
               className={cn(
                 'flex flex-col transition-transform duration-300 ease-in-out hover:scale-[1.02] hover:shadow-xl relative overflow-hidden border',
-                plan.highlight ? 'border-primary border-2 shadow-lg bg-card' : 'bg-card' // Ensure background is card for dark mode
+                plan.highlight ? 'border-primary border-2 shadow-lg bg-card' : 'bg-card'
               )}
             >
                {plan.highlight && plan.badge && (
                   <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-bl-lg flex items-center gap-1 z-10">
-                      <Star size={12} className="fill-current" /> {plan.badge}
+                      {plan.badgeIcon || <Star size={12} className="fill-current" />} {plan.badge}
                   </div>
                )}
               <CardHeader className="pb-4">
                 <CardTitle className="text-2xl font-semibold text-foreground">{plan.name}</CardTitle>
-                <CardDescription className="text-muted-foreground h-10">{plan.description}</CardDescription> {/* Fixed height */}
+                <CardDescription className="text-muted-foreground h-10">{plan.description}</CardDescription>
                  <div className="flex items-baseline gap-1 mt-2">
                      <span className="text-3xl font-bold text-foreground">{plan.price}</span>
                      <span className="text-sm text-muted-foreground">{plan.period}</span>

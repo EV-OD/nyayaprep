@@ -23,21 +23,21 @@ import Link from 'next/link'; // Import Link
 // WhatsApp number for validation
 const WHATSAPP_NUMBER = '+97798XXXXXXXX'; // Placeholder number
 
-// Subscription details including color classes (consistent with dashboard)
+// Updated subscription details including color classes (consistent with dashboard)
 const subscriptionDetails: Record<SubscriptionPlan, { name: string; colorClass: string; price: string; }> = {
     free: {
         name: 'Free',
-        colorClass: 'bg-gray-100 text-gray-800 border-gray-300', // Gray
+        colorClass: 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700', // Gray
         price: 'NRS 0'
     },
     basic: {
         name: 'Basic',
-        colorClass: 'bg-green-100 text-green-800 border-green-300', // Green
-        price: 'NRS 20 / week'
+        colorClass: 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700', // Green
+        price: 'NRS 50 / week' // Updated price
     },
     premium: {
         name: 'Premium',
-        colorClass: 'bg-yellow-100 text-yellow-800 border-yellow-400', // Gold/Yellow
+        colorClass: 'bg-yellow-100 text-yellow-800 border-yellow-400 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700', // Gold/Yellow
         price: 'NRS 100 / week'
     },
 };
@@ -196,8 +196,8 @@ export default function UserProfilePage() {
                                         variant="outline"
                                         size="sm"
                                         className={cn("w-full sm:w-auto bg-background/70 border-current hover:bg-background text-current",
-                                            profile.subscription === 'basic' ? "border-green-600 text-green-700" :
-                                            profile.subscription === 'free' ? "border-gray-600 text-gray-700" : ""
+                                            profile.subscription === 'basic' ? "border-green-600 text-green-700 dark:border-green-400 dark:text-green-400" : // Adjusted dark mode color
+                                            profile.subscription === 'free' ? "border-gray-600 text-gray-700 dark:border-gray-400 dark:text-gray-400" : "" // Adjusted dark mode color
                                          )}
                                     >
                                          Upgrade Plan

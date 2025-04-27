@@ -27,30 +27,48 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { getUserProfile, getUserQuizResults } from '@/lib/firebase/firestore';
 import type { UserProfile, QuizResult, SubscriptionPlan } from '@/types/user';
 import { formatDistanceToNow } from 'date-fns';
-import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video } from 'lucide-react'; // Import icons
+import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video, History, BarChart2, X } from 'lucide-react'; // Import icons, including History, BarChart2, X
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation'; // Import useRouter
 
 // WhatsApp number for validation
 const WHATSAPP_NUMBER = '+97798XXXXXXXX'; // Placeholder number
 
-// Subscription details including color classes
-const subscriptionDetails: Record<SubscriptionPlan, { name: string; features: string[]; colorClass: string; price: string }> = {
+// Updated Subscription details including color classes and features
+const subscriptionDetails: Record<SubscriptionPlan, { name: string; features: { text: string; included: boolean }[]; colorClass: string; price: string }> = {
     free: {
         name: 'Free',
-        features: ['20 questions/day', 'Basic support'],
+        features: [
+          { text: '2 Quizzes per day (10 questions each)', included: true },
+          { text: 'Answer History Tracking', included: false },
+          { text: 'Performance Analytics', included: false },
+          { text: 'Downloadable Notes & PDFs', included: false },
+          { text: 'Basic Support', included: true },
+        ],
         colorClass: 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700', // Gray for Free
         price: 'NRS 0'
     },
     basic: {
         name: 'Basic',
-        features: ['100 questions/day', 'Basic support'],
+        features: [
+          { text: '5 Quizzes per day (10 questions each)', included: true },
+          { text: 'Answer History Tracking', included: false },
+          { text: 'Performance Analytics', included: false },
+          { text: 'Downloadable Notes & PDFs', included: false },
+          { text: 'Basic Support', included: true },
+        ],
         colorClass: 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700', // Green for Basic
-        price: 'NRS 20 / week'
+        price: 'NRS 50 / week'
     },
     premium: {
         name: 'Premium',
-        features: ['Unlimited questions', 'Premium content access', 'PDF downloads', 'Priority support'],
+        features: [
+          { text: 'Unlimited Quizzes (10 questions each)', included: true },
+          { text: 'Answer History Tracking', included: true },
+          { text: 'Performance Analytics', included: true },
+          { text: 'Downloadable Notes & PDFs', included: true },
+          { text: 'Priority Support', included: true },
+        ],
         colorClass: 'bg-yellow-100 text-yellow-800 border-yellow-400 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700', // Gold/Yellow for Premium
         price: 'NRS 100 / week'
     },
@@ -118,8 +136,9 @@ export default function UserDashboardPage() {
      const showValidationAlert = profile && profile.subscription !== 'free' && !profile.validated;
      const currentPlanDetails = profile?.subscription ? subscriptionDetails[profile.subscription] : subscriptionDetails.free;
 
-     // Determine content lock status
+     // Determine content lock status based on new requirements
      const contentLocked = !profile || !(profile.subscription === 'premium' && profile.validated);
+     const analyticsLocked = !profile || !(profile.subscription === 'premium' && profile.validated); // Lock analytics for non-premium/validated
 
      const UpgradeAlertDialog = ({ triggerButton }: { triggerButton: React.ReactNode }) => (
         <AlertDialog>
@@ -193,28 +212,40 @@ export default function UserDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Average Score Card */}
-        <Card className="lg:col-span-1">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Score</CardTitle>
-             <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {loadingResults ? (
-              <Skeleton className="h-8 w-1/4 mb-2" />
-            ) : (
-              <div className="text-2xl font-bold">{calculateAverageScore()}%</div>
-            )}
-             {loadingResults ? (
-                <Skeleton className="h-4 w-3/4 mt-1" />
-             ) : (
-                <p className="text-xs text-muted-foreground">
-                   Based on your last {results.length} quiz attempt(s)
-                </p>
-             )}
-             <Progress value={loadingResults ? 0 : calculateAverageScore()} className="w-full mt-3 h-2" />
-          </CardContent>
-        </Card>
+        {/* Average Score Card - Locked for Free/Basic */}
+         <Card className="lg:col-span-1 relative overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Average Score</CardTitle>
+                <Target className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent className="relative">
+                  {analyticsLocked && (
+                     <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-4 z-10 rounded-b-lg">
+                         <Lock size={24} className="text-primary mb-2" />
+                         <p className="text-center text-xs font-semibold mb-2">Available for Premium Users</p>
+                         <UpgradeAlertDialog
+                             triggerButton={<Button variant="default" size="sm"><Zap className="mr-1 h-3 w-3" /> Upgrade</Button>}
+                         />
+                     </div>
+                  )}
+                   <div className={cn(analyticsLocked ? "opacity-30 pointer-events-none" : "")}>
+                     {loadingResults ? (
+                       <Skeleton className="h-8 w-1/4 mb-2" />
+                     ) : (
+                       <div className="text-2xl font-bold">{calculateAverageScore()}%</div>
+                     )}
+                     {loadingResults ? (
+                         <Skeleton className="h-4 w-3/4 mt-1" />
+                     ) : (
+                         <p className="text-xs text-muted-foreground">
+                             Based on your last {results.length} quiz attempt(s)
+                         </p>
+                     )}
+                     <Progress value={loadingResults ? 0 : calculateAverageScore()} className="w-full mt-3 h-2" />
+                 </div>
+              </CardContent>
+          </Card>
+
 
          {/* Start Quiz Card */}
         <Card className="bg-primary text-primary-foreground lg:col-span-1">
@@ -223,12 +254,17 @@ export default function UserDashboardPage() {
               <FileText className="h-4 w-4 text-primary-foreground/80" />
             </CardHeader>
             <CardContent>
-                 <p className="text-primary-foreground/90 mb-4">
+                 <p className="text-primary-foreground/90 mb-4 text-sm">
+                     {/* Adjust text based on plan/validation */}
                      {profile?.subscription === 'free'
-                       ? 'Take your daily free quiz.'
-                       : profile?.validated
-                         ? 'Take a new quiz to test your knowledge.'
-                         : 'Activate your plan to start quizzes.'
+                       ? 'Take one of your 2 daily quizzes (10 questions).'
+                       : profile?.subscription === 'basic'
+                         ? profile?.validated
+                            ? 'Take one of your 5 daily quizzes (10 questions).'
+                            : 'Activate your Basic plan to start quizzes.'
+                         : profile?.validated // Premium
+                           ? 'Take a new quiz to test your knowledge.'
+                           : 'Activate your Premium plan to start quizzes.'
                      }
                  </p>
                  <Link href="/quiz" passHref>
@@ -280,8 +316,12 @@ export default function UserDashboardPage() {
                          <ul className="space-y-1.5 text-xs mt-3">
                               {currentPlanDetails.features.map((feature, index) => (
                                  <li key={index} className="flex items-center gap-2">
-                                      <CheckCircle size={14} />
-                                     <span>{feature}</span>
+                                      {feature.included ? (
+                                         <CheckCircle size={14} className="text-green-600 dark:text-green-400" />
+                                       ) : (
+                                         <X size={14} className="text-red-500 dark:text-red-400" />
+                                       )}
+                                     <span>{feature.text}</span>
                                   </li>
                               ))}
                           </ul>
@@ -299,50 +339,61 @@ export default function UserDashboardPage() {
              </CardContent>
          </Card>
 
-         {/* Recent Quiz Results Table Card */}
-         <Card className="lg:col-span-2">
+         {/* Recent Quiz Results Table Card - Locked for Free/Basic */}
+         <Card className="lg:col-span-2 relative overflow-hidden">
            <CardHeader>
-             <CardTitle>Recent Activity</CardTitle>
+             <CardTitle className="flex items-center gap-2"><History size={20} /> Recent Activity</CardTitle>
              <CardDescription>Your most recent quiz attempts.</CardDescription>
            </CardHeader>
-           <CardContent>
-             {loadingResults ? (
-               <ResultsTableSkeleton />
-             ) : results.length > 0 ? (
-               <Table>
-                 <TableHeader>
-                   <TableRow>
-                     <TableHead>Date</TableHead>
-                     <TableHead>Score</TableHead>
-                     <TableHead>Percentage</TableHead>
-                     <TableHead className="text-right">Questions</TableHead>
-                   </TableRow>
-                 </TableHeader>
-                 <TableBody>
-                   {results.map((result) => (
-                     <TableRow key={result.id}>
-                       <TableCell>
-                         {result.completedAt ? formatDistanceToNow(result.completedAt.toDate(), { addSuffix: true }) : 'N/A'}
-                       </TableCell>
-                       <TableCell>{result.score} / {result.totalQuestions}</TableCell>
-                       <TableCell>
-                         <Badge variant={result.percentage >= 70 ? 'default' : result.percentage >= 40 ? 'secondary' : 'destructive'}>
-                           {result.percentage}%
-                         </Badge>
-                       </TableCell>
-                       <TableCell className="text-right">{result.totalQuestions}</TableCell>
-                     </TableRow>
-                   ))}
-                 </TableBody>
-               </Table>
-             ) : (
-               <p className="text-center text-muted-foreground py-6">No quiz results found yet. Take a quiz to see your progress!</p>
-             )}
+           <CardContent className="relative">
+              {analyticsLocked && (
+                 <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-10 rounded-b-lg">
+                     <Lock size={40} className="text-primary mb-4" />
+                     <p className="text-center font-semibold mb-4">Answer history available for Premium Users.</p>
+                     <UpgradeAlertDialog
+                         triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Now</Button>}
+                     />
+                 </div>
+              )}
+              <div className={cn(analyticsLocked ? "opacity-30 pointer-events-none" : "")}>
+                 {loadingResults ? (
+                   <ResultsTableSkeleton />
+                 ) : results.length > 0 ? (
+                   <Table>
+                     <TableHeader>
+                       <TableRow>
+                         <TableHead>Date</TableHead>
+                         <TableHead>Score</TableHead>
+                         <TableHead>Percentage</TableHead>
+                         <TableHead className="text-right">Questions</TableHead>
+                       </TableRow>
+                     </TableHeader>
+                     <TableBody>
+                       {results.map((result) => (
+                         <TableRow key={result.id}>
+                           <TableCell>
+                             {result.completedAt ? formatDistanceToNow(result.completedAt.toDate(), { addSuffix: true }) : 'N/A'}
+                           </TableCell>
+                           <TableCell>{result.score} / {result.totalQuestions}</TableCell>
+                           <TableCell>
+                             <Badge variant={result.percentage >= 70 ? 'default' : result.percentage >= 40 ? 'secondary' : 'destructive'}>
+                               {result.percentage}%
+                             </Badge>
+                           </TableCell>
+                           <TableCell className="text-right">{result.totalQuestions}</TableCell>
+                         </TableRow>
+                       ))}
+                     </TableBody>
+                   </Table>
+                 ) : (
+                   <p className="text-center text-muted-foreground py-6">No quiz results found yet. Take a quiz to see your progress!</p>
+                 )}
+              </div>
            </CardContent>
          </Card>
       </div>
 
-       {/* Third Row: Notes/Resources & Videos */}
+       {/* Third Row: Notes/Resources & Videos (Premium Only) */}
        <div className="grid gap-6 md:grid-cols-2">
           {/* Notes & Resources Section */}
           <Card className="relative overflow-hidden flex flex-col">
@@ -350,9 +401,9 @@ export default function UserDashboardPage() {
                  <CardTitle className="flex items-center gap-2"><Newspaper size={20} /> Notes & Resources</CardTitle>
                  <CardDescription>Access study materials, PDFs, and important notes.</CardDescription>
               </CardHeader>
-              <CardContent className="flex-grow relative"> {/* Make content area grow */}
+              <CardContent className="flex-grow relative">
                  {contentLocked && (
-                     <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-10 rounded-b-lg"> {/* Cover content area */}
+                     <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-10 rounded-b-lg">
                          <Lock size={40} className="text-primary mb-4" />
                          <p className="text-center font-semibold mb-4">This section requires a validated Premium plan.</p>
                           <UpgradeAlertDialog
@@ -360,7 +411,7 @@ export default function UserDashboardPage() {
                          />
                      </div>
                  )}
-                 {/* Actual content goes here, visible only if not locked */}
+                 {/* Actual content goes here */}
                   <div className={cn("space-y-3", contentLocked ? "opacity-30 pointer-events-none" : "")}>
                       {/* Example Content Item */}
                       <div className="flex justify-between items-center p-3 border rounded-md">
@@ -371,7 +422,6 @@ export default function UserDashboardPage() {
                           <span className="text-sm font-medium">Legal Theory Summaries</span>
                           <Button variant="outline" size="sm" disabled={contentLocked}>View</Button>
                       </div>
-                       {/* Add more resources */}
                        <div className="flex justify-between items-center p-3 border rounded-md">
                           <span className="text-sm font-medium">Sample Contract Drafts</span>
                           <Button variant="outline" size="sm" disabled={contentLocked}>View</Button>
@@ -435,7 +485,6 @@ export default function UserDashboardPage() {
                                 <Button variant="link" size="sm" className="p-0 h-auto text-xs" disabled={contentLocked}>Watch Now</Button>
                             </div>
                        </div>
-                        {/* Add more videos */}
                    </div>
               </CardContent>
           </Card>
@@ -478,5 +527,3 @@ function SubscriptionSkeleton() {
          </div>
     );
 }
-
-    
