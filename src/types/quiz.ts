@@ -20,6 +20,7 @@ export interface Answer {
   questionId: string;
   selectedAnswer: string; // Store the selected answer text (in the language it was selected)
   isCorrect: boolean;
+  correctAnswerText?: string; // Optional: Store the text of the correct answer for review display
 }
 
 export type Language = 'en' | 'ne';
