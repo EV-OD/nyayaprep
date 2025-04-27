@@ -1,13 +1,11 @@
-
-
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
-import { PlusCircle, Edit, Trash2, Languages, Filter, Search, Loader2, Star, CheckCircle, AlertTriangle, HelpCircle, Send, Clock, Check, X, Bell, Users, ListChecks } from 'lucide-react'; // Added ListChecks here
+import { PlusCircle, Edit, Trash2, Languages, Filter, Search, Loader2, Star, CheckCircle, AlertTriangle, HelpCircle, Send, Clock, Check, X, Bell, Users, ListChecks } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea'; // Added Textarea for answers
+import { Textarea } from '@/components/ui/textarea';
 import {
   Table,
   TableBody,
@@ -35,55 +33,30 @@ import {
   DialogDescription,
   DialogFooter,
   DialogClose,
-} from '@/components/ui/dialog'; // Import Dialog components
+} from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import type { Question } from '@/types/quiz';
-import type { UserProfile, SubscriptionPlan, TeacherQuestion } from '@/types/user'; // Import TeacherQuestion
+import type { UserProfile, SubscriptionPlan, TeacherQuestion } from '@/types/user';
 import { AdminHeader } from '@/components/admin/admin-header';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils'; // Import cn utility
-import { setUserValidationStatus, getUserProfile, getPendingTeacherQuestions, answerTeacherQuestion } from '@/lib/firebase/firestore'; // Import teacher question functions
-import { Timestamp } from 'firebase/firestore'; // Import Timestamp
-import { format } from 'date-fns'; // Import format
-import { auth } from '@/lib/firebase/config'; // Import auth to get admin UID
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'; // Import Card components
+import { cn } from '@/lib/utils';
+import {
+    setUserValidationStatus,
+    getUserProfile,
+    getPendingTeacherQuestions,
+    answerTeacherQuestion,
+    getAllMcqs, // Fetch all MCQs
+    deleteMcq, // Delete single MCQ
+    deleteMultipleMcqs, // Delete multiple MCQs
+} from '@/lib/firebase/firestore';
+import { Timestamp } from 'firebase/firestore';
+import { format } from 'date-fns';
+import { auth } from '@/lib/firebase/config';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 
-// Dummy data for initial structure - replace with actual data fetching
-const dummyMCQs: Question[] = [
-  {
-    id: '1',
-    category: 'Constitutional Law',
-    question: {
-      en: 'Which article of the Constitution of Nepal guarantees the right to freedom?',
-      ne: 'नेपालको संविधानको कुन धाराले स्वतन्त्रताको हकको प्रत्याभूति गरेको छ?',
-    },
-    options: { en: ['Art 16', 'Art 17', 'Art 18', 'Art 19'], ne: ['धारा १६', 'धारा १७', 'धारा १८', 'धारा १९'] },
-    correctAnswer: { en: 'Art 17', ne: 'धारा १७' }, // Corrected dummy answer format
-  },
-  {
-    id: '2',
-    category: 'Legal Theory',
-    question: { en: 'Who is considered the father of the theory of Natural Law?', ne: 'प्राकृतिक कानूनको सिद्धान्तका पिता कसलाई मानिन्छ?' },
-    options: { en: ['Austin', 'Aquinas', 'Bentham', 'Hart'], ne: ['अस्टिन', 'एक्विनास', 'बेन्थम', 'हार्ट'] },
-    correctAnswer: { en: 'Aquinas', ne: 'एक्विनास' }, // Corrected dummy answer format
-  },
-   {
-    id: '3',
-    category: 'Criminal Law',
-    question: { en: 'What does "mens rea" refer to?', ne: '"मेन्स रिया" भन्नाले के बुझिन्छ?' },
-    options: { en: ['Guilty act', 'Guilty mind', 'Burden of proof', 'Standard'], ne: ['कार्य', 'मनसाय', 'भार', 'स्तर'] },
-    correctAnswer: { en: 'Guilty mind', ne: 'दोषपूर्ण मनसाय' }, // Corrected dummy answer format
-  },
-   {
-    id: '4',
-    category: 'Constitutional Law',
-    question: { en: 'How many fundamental rights are enshrined in the Constitution of Nepal (2015)?', ne: 'नेपालको संविधान (२०७२) मा कतिवटा मौलिक हकहरू सुनिश्चित गरिएका छन्?' },
-    options: { en: ['28', '31', '33', '35'], ne: ['२८', '३१', '३३', '३५'] },
-    correctAnswer: { en: '31', ne: '३१' }, // Corrected dummy answer format
-  },
-];
+// Dummy data removed - will fetch from Firestore
 
 // Placeholder: Dummy user data for admin view (replace with actual fetching later)
 const dummyUsers: UserProfile[] = [
@@ -105,15 +78,15 @@ async function fetchAllUsers(): Promise<UserProfile[]> {
 export default function ManageMCQsPage() {
   const [mcqs, setMcqs] = React.useState<Question[]>([]);
   const [users, setUsers] = React.useState<UserProfile[]>([]);
-  const [teacherQuestions, setTeacherQuestions] = React.useState<TeacherQuestion[]>([]); // State for pending questions
+  const [teacherQuestions, setTeacherQuestions] = React.useState<TeacherQuestion[]>([]);
   const [isLoadingMCQs, setIsLoadingMCQs] = React.useState(true);
   const [isLoadingUsers, setIsLoadingUsers] = React.useState(true);
-  const [isLoadingTeacherQuestions, setIsLoadingTeacherQuestions] = React.useState(true); // Loading state for teacher questions
+  const [isLoadingTeacherQuestions, setIsLoadingTeacherQuestions] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedMcqs, setSelectedMcqs] = React.useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = React.useState<'mcqs' | 'users' | 'teacherQuestions'>('mcqs'); // Added 'teacherQuestions' tab
-  const [currentAdminUid, setCurrentAdminUid] = React.useState<string | null>(null); // State for admin UID
+  const [activeTab, setActiveTab] = React.useState<'mcqs' | 'users' | 'teacherQuestions'>('mcqs');
+  const [currentAdminUid, setCurrentAdminUid] = React.useState<string | null>(null);
   const [answerDialogOpen, setAnswerDialogOpen] = React.useState(false);
   const [selectedQuestionToAnswer, setSelectedQuestionToAnswer] = React.useState<TeacherQuestion | null>(null);
   const [answerText, setAnswerText] = React.useState('');
@@ -135,11 +108,12 @@ export default function ManageMCQsPage() {
       setIsLoadingMCQs(true);
       setError(null);
       try {
-        await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate delay
-        setMcqs(dummyMCQs); // Replace with actual API fetch
+        const fetchedMcqs = await getAllMcqs(true); // Fetch from Firestore, order by date
+        setMcqs(fetchedMcqs);
       } catch (err) {
          console.error("Failed to fetch MCQs:", err);
          setError("Failed to load MCQs. Please try again.");
+         toast({ variant: "destructive", title: "Loading Error", description: "Could not load MCQs from the database."});
       } finally {
         setIsLoadingMCQs(false);
       }
@@ -147,13 +121,14 @@ export default function ManageMCQsPage() {
 
     const fetchUsersData = async () => {
          setIsLoadingUsers(true);
-         setError(null); // Clear previous errors
+         setError(null);
          try {
-             const fetchedUsers = await fetchAllUsers(); // Use the new fetch function
+             const fetchedUsers = await fetchAllUsers(); // Use the mock fetch function for now
              setUsers(fetchedUsers);
          } catch (err) {
              console.error("Failed to fetch users:", err);
-             setError("Failed to load users. Please try again."); // Set error state for users
+             setError("Failed to load users. Please try again.");
+             toast({ variant: "destructive", title: "Loading Error", description: "Could not load users."});
          } finally {
              setIsLoadingUsers(false);
          }
@@ -168,7 +143,7 @@ export default function ManageMCQsPage() {
          } catch (err) {
              console.error("Failed to fetch teacher questions:", err);
               setError("Failed to load pending questions. Please try again.");
-              // Log the specific error if it's about missing index
+              toast({ variant: "destructive", title: "Loading Error", description: "Could not load pending questions."});
              const firebaseError = err as Error;
              if (firebaseError.message.includes('requires an index')) {
                  console.warn(
@@ -182,52 +157,102 @@ export default function ManageMCQsPage() {
 
 
     if (activeTab === 'mcqs') {
-        if (mcqs.length === 0) fetchMcqs();
-        else setIsLoadingMCQs(false);
+        fetchMcqs(); // Fetch MCQs when tab is active or on initial load
     } else if (activeTab === 'users') {
-        if (users.length === 0) fetchUsersData();
-         else setIsLoadingUsers(false);
+        fetchUsersData(); // Fetch users when tab is active
     } else if (activeTab === 'teacherQuestions') {
-        // Fetch teacher questions only when tab is active
-        fetchTeacherQuestionsData();
+        fetchTeacherQuestionsData(); // Fetch teacher questions when tab is active
     }
-  }, [activeTab]); // Removed length dependencies to allow refetching
+  }, [activeTab, toast]); // Add toast to dependencies
 
+  // Handle deleting a single MCQ
   const handleDeleteMCQ = async (id: string) => {
-     console.log(`Deleting MCQ with ID: ${id}`);
-     toast({ title: "Action Not Implemented", description: "MCQ deletion backend not implemented yet." });
+     console.log(`Attempting to delete MCQ with ID: ${id}`);
+     // Optimistically remove from UI
+     setMcqs(prev => prev.filter(mcq => mcq.id !== id));
+     setSelectedMcqs(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+     });
+
+     try {
+         await deleteMcq(id); // Call Firestore delete function
+         toast({ title: "MCQ Deleted", description: `Question ID ${id} has been removed.` });
+     } catch (error) {
+         console.error(`Failed to delete MCQ ${id}:`, error);
+         toast({ variant: "destructive", title: "Deletion Failed", description: `Could not delete MCQ ${id}. It might have been restored.` });
+         // Re-fetch to ensure consistency if deletion fails
+          setError(null); // Clear previous error
+          try {
+              const fetchedMcqs = await getAllMcqs(true);
+              setMcqs(fetchedMcqs);
+          } catch (fetchError) {
+              console.error("Failed to re-fetch MCQs after delete error:", fetchError);
+              setError("Failed to reload MCQs after deletion error.");
+          }
+     }
   };
 
+  // Handle deleting selected MCQs
   const handleDeleteSelectedMCQs = async () => {
     const idsToDelete = Array.from(selectedMcqs);
     if (idsToDelete.length === 0) {
         toast({ variant: "destructive", title: "No MCQs Selected", description: "Please select MCQs to delete." });
         return;
     }
-    console.log(`Deleting selected MCQs: ${idsToDelete.join(', ')}`);
-     toast({ title: "Action Not Implemented", description: "Bulk MCQ deletion backend not implemented yet." });
+    console.log(`Attempting to delete selected MCQs: ${idsToDelete.join(', ')}`);
+
+    // Optimistically remove from UI
+    setMcqs(prev => prev.filter(mcq => !idsToDelete.includes(mcq.id)));
+    setSelectedMcqs(new Set()); // Clear selection
+
+     try {
+         await deleteMultipleMcqs(idsToDelete); // Call Firestore bulk delete function
+         toast({ title: "MCQs Deleted", description: `${idsToDelete.length} question(s) have been removed.` });
+     } catch (error) {
+         console.error(`Failed to delete selected MCQs:`, error);
+         toast({ variant: "destructive", title: "Deletion Failed", description: `Could not delete selected MCQs. They might have been restored.` });
+          // Re-fetch to ensure consistency
+          setError(null);
+          try {
+              const fetchedMcqs = await getAllMcqs(true);
+              setMcqs(fetchedMcqs);
+          } catch (fetchError) {
+              console.error("Failed to re-fetch MCQs after bulk delete error:", fetchError);
+              setError("Failed to reload MCQs after deletion error.");
+          }
+     }
   };
 
   const handleDeleteUser = async (uid: string) => {
       console.log(`Deleting User with UID: ${uid}`);
+      // Implement actual user deletion logic here (requires Admin SDK or Cloud Function usually)
       toast({ title: "Action Not Implemented", description: "User deletion functionality is not yet available." });
   };
 
   const handleToggleValidation = async (uid: string, currentStatus: boolean) => {
        const newStatus = !currentStatus;
+       // Optimistically update UI
+       setUsers(prevUsers =>
+           prevUsers.map(user =>
+               user.uid === uid ? { ...user, validated: newStatus } : user
+           )
+       );
        try {
            await setUserValidationStatus(uid, newStatus);
-           setUsers(prevUsers =>
-               prevUsers.map(user =>
-                   user.uid === uid ? { ...user, validated: newStatus } : user
-               )
-           );
            toast({
                title: "Validation Status Updated",
-               description: `User ${uid} validation set to ${newStatus ? 'Validated' : 'Not Validated'}.`,
+               description: `User validation set to ${newStatus ? 'Validated' : 'Not Validated'}.`,
            });
        } catch (error) {
            console.error("Failed to update validation status:", error);
+           // Revert UI on error
+            setUsers(prevUsers =>
+               prevUsers.map(user =>
+                   user.uid === uid ? { ...user, validated: currentStatus } : user // Revert to old status
+               )
+           );
            toast({
                variant: "destructive",
                title: "Update Failed",
@@ -238,7 +263,7 @@ export default function ManageMCQsPage() {
 
     const handleOpenAnswerDialog = (question: TeacherQuestion) => {
         setSelectedQuestionToAnswer(question);
-        setAnswerText(''); // Clear previous answer
+        setAnswerText('');
         setAnswerDialogOpen(true);
     };
 
@@ -249,21 +274,21 @@ export default function ManageMCQsPage() {
         }
         setIsSubmittingAnswer(true);
         try {
-             // TODO: Fetch the user profile to increment notification count
+             // Fetch user profile to pass current notification count (optional optimization)
             const userProfile = await getUserProfile(selectedQuestionToAnswer.userId);
 
             await answerTeacherQuestion(
                 selectedQuestionToAnswer.id!,
                 answerText,
                 currentAdminUid,
-                userProfile?.unreadNotifications // Pass current count
+                userProfile?.unreadNotifications
              );
             toast({ title: "Answer Submitted", description: `Answer provided for question ID ${selectedQuestionToAnswer.id}. User notified.` });
 
             // Remove the answered question from the local state
             setTeacherQuestions(prev => prev.filter(q => q.id !== selectedQuestionToAnswer.id));
 
-            setAnswerDialogOpen(false); // Close the dialog
+            setAnswerDialogOpen(false);
         } catch (error) {
             console.error("Failed to submit answer:", error);
             toast({ variant: "destructive", title: "Submission Failed", description: "Could not submit the answer." });
@@ -293,12 +318,14 @@ export default function ManageMCQsPage() {
      });
    };
 
+  // Filter MCQs based on search term
   const filteredMcqs = mcqs.filter(mcq =>
     mcq.question.en.toLowerCase().includes(searchTerm.toLowerCase()) ||
     mcq.question.ne.toLowerCase().includes(searchTerm.toLowerCase()) ||
     mcq.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Filter Users based on search term
   const filteredUsers = users.filter(user =>
      (user.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
      (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -306,34 +333,38 @@ export default function ManageMCQsPage() {
      (user.phone?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
-   // Group pending questions by user ID for the specific display format
+   // Group pending questions by user ID
    const groupedTeacherQuestions = React.useMemo(() => {
         return teacherQuestions
-         .filter(q => q.status === 'pending') // Only show pending
-         .filter(q => // Filter by search term
+         .filter(q => q.status === 'pending')
+         .filter(q =>
              q.questionText.toLowerCase().includes(searchTerm.toLowerCase()) ||
              (q.userName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
              (q.userEmail?.toLowerCase() || '').includes(searchTerm.toLowerCase())
          )
          .reduce((acc, q) => {
              if (!acc[q.userId]) {
+                 // Fetch user profile details here if needed, or rely on stored name/email
+                  // Currently relies on name/email stored with the question
                  acc[q.userId] = {
                      userName: q.userName || 'Unknown User',
                      userEmail: q.userEmail || 'No Email',
                      userId: q.userId,
                      questions: [],
                      // Fetch user profile to get subscription (can be optimized)
+                     // Find user in the already fetched users list
                      subscription: users.find(u => u.uid === q.userId)?.subscription || 'free'
                  };
              }
              acc[q.userId].questions.push(q);
              return acc;
          }, {} as Record<string, { userName: string; userEmail: string; userId: string, questions: TeacherQuestion[], subscription: SubscriptionPlan }>);
-    }, [teacherQuestions, searchTerm, users]); // Depend on users state too for subscription info
+    }, [teacherQuestions, searchTerm, users]); // Depend on users state too
 
    const isAllSelected = filteredMcqs.length > 0 && selectedMcqs.size === filteredMcqs.length;
    const isIndeterminate = selectedMcqs.size > 0 && selectedMcqs.size < filteredMcqs.length;
 
+   // --- Helper functions for badge styling ---
    const getSubscriptionBadgeDetails = (plan?: SubscriptionPlan) => {
         switch (plan) {
             case 'premium': return { variant: 'default', colorClass: 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700', icon: <Star className="mr-1 h-3 w-3 fill-current" /> };
@@ -362,9 +393,9 @@ export default function ManageMCQsPage() {
          switch (status) {
              case 'pending':
                  return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700"><Clock size={12} className="mr-1"/> Pending</Badge>;
-             case 'answered': // Should not appear in this table, but good practice
+             case 'answered':
                  return <Badge variant="default" className="bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700"><Check size={12} className="mr-1"/> Answered</Badge>;
-             case 'rejected': // Can be added later if needed
+             case 'rejected':
                  return <Badge variant="destructive"><X size={12} className="mr-1"/> Rejected</Badge>;
              default:
                  return <Badge variant="secondary">Unknown</Badge>;
@@ -466,13 +497,7 @@ export default function ManageMCQsPage() {
          </div>
 
          {/* Display Error if any */}
-         {error && activeTab === 'mcqs' && !isLoadingMCQs && (
-             <div className="text-center py-10 text-destructive">{error}</div>
-         )}
-         {error && activeTab === 'users' && !isLoadingUsers && (
-             <div className="text-center py-10 text-destructive">{error}</div>
-         )}
-          {error && activeTab === 'teacherQuestions' && !isLoadingTeacherQuestions && (
+         {error && (
              <div className="text-center py-10 text-destructive">{error}</div>
          )}
 
@@ -486,7 +511,7 @@ export default function ManageMCQsPage() {
                         <TableRow>
                          <TableHead className="w-[50px]">
                             <Checkbox
-                                checked={isAllSelected || isIndeterminate}
+                                checked={isAllSelected ? true : isIndeterminate ? 'indeterminate' : false}
                                 onCheckedChange={handleSelectAll}
                                 aria-label="Select all rows"
                             />
@@ -553,7 +578,7 @@ export default function ManageMCQsPage() {
                         ) : (
                          <TableRow>
                            <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                             {mcqs.length === 0 ? "No MCQs found." : "No MCQs found matching your search criteria."}
+                             {mcqs.length === 0 ? "No MCQs found in the database." : "No MCQs found matching your search criteria."}
                            </TableCell>
                          </TableRow>
                         )}
@@ -700,19 +725,15 @@ export default function ManageMCQsPage() {
                                                      <span>Asked: {q.askedAt ? format(q.askedAt.toDate(), 'PPp') : 'N/A'}</span>
                                                      {getStatusBadge(q.status)}
                                                  </div>
-                                                 {/* Direct Answer Input */}
-                                                  <div className="mt-2">
-                                                     {/* Use Dialog for consistency and better UX */}
-                                                     <Button
-                                                         size="sm"
-                                                         variant="default"
-                                                         onClick={() => handleOpenAnswerDialog(q)}
-                                                         className="bg-primary hover:bg-primary/90"
-                                                     >
-                                                         <Send className="mr-1 h-3.5 w-3.5" /> Answer
-                                                     </Button>
-                                                      {/* <Button size="sm" variant="outline" className="ml-2">Reply Later</Button> */}
-                                                  </div>
+                                                 <Button
+                                                     size="sm"
+                                                     variant="default"
+                                                     onClick={() => handleOpenAnswerDialog(q)}
+                                                     className="bg-primary hover:bg-primary/90"
+                                                     disabled={isSubmittingAnswer} // Disable while any answer is submitting
+                                                 >
+                                                     <Send className="mr-1 h-3.5 w-3.5" /> Answer
+                                                 </Button>
                                             </div>
                                          ))}
                                     </CardContent>
@@ -731,7 +752,7 @@ export default function ManageMCQsPage() {
          )}
 
 
-         {/* Answer Dialog (Reused for Direct Input Trigger) */}
+         {/* Answer Dialog */}
          <Dialog open={answerDialogOpen} onOpenChange={setAnswerDialogOpen}>
            <DialogContent className="sm:max-w-[600px]">
              <DialogHeader>
@@ -754,7 +775,7 @@ export default function ManageMCQsPage() {
                     value={answerText}
                     onChange={(e) => setAnswerText(e.target.value)}
                     disabled={isSubmittingAnswer}
-                    className="text-sm" // Ensure textarea matches direct input style
+                    className="text-sm"
                 />
              </div>
              <DialogFooter>
@@ -827,7 +848,7 @@ function UserTableSkeleton() {
                     <TableHead><Skeleton className="h-4 w-40" /></TableHead>
                     <TableHead><Skeleton className="h-4 w-24" /></TableHead>
                     <TableHead><Skeleton className="h-4 w-20" /></TableHead>
-                    <TableHead><Skeleton className="h-4 w-20" /></TableHead> {/* Status column */}
+                    <TableHead><Skeleton className="h-4 w-20" /></TableHead>
                     <TableHead className="text-right w-[150px]"><Skeleton className="h-4 w-16 ml-auto" /></TableHead>
                 </TableRow>
             </TableHeader>
@@ -838,7 +859,7 @@ function UserTableSkeleton() {
                         <TableCell><Skeleton className="h-4 w-48" /></TableCell>
                          <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                         <TableCell><Skeleton className="h-6 w-16 rounded-full" /></TableCell>
-                        <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell> {/* Status skeleton */}
+                        <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
                         <TableCell className="text-right">
                             <div className="flex gap-1 justify-end">
                                 <Skeleton className="h-8 w-8 rounded-md" />
@@ -854,7 +875,6 @@ function UserTableSkeleton() {
     );
 }
 
-// Skeleton for the grouped user questions view
 function TeacherQuestionsSkeleton() {
     return (
         <div className="space-y-6">

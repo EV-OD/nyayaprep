@@ -24,95 +24,68 @@ import { Loader2, PlusCircle, Trash2, ArrowLeft } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/admin-header';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { Question } from '@/types/quiz'; // Assuming Question type exists
+import { getMcqById, updateMcq } from '@/lib/firebase/firestore'; // Import Firestore functions
+import type { Question } from '@/types/quiz';
 
-// Dummy categories - replace with dynamic fetch later
+// Define actual categories used
 const categories = [
-  { value: 'constitutional-law', label: 'Constitutional Law' },
-  { value: 'criminal-law', label: 'Criminal Law' },
-  { value: 'legal-theory', label: 'Legal Theory' },
-  { value: 'international-law', label: 'International Law' },
-  { value: 'procedural-law', label: 'Procedural Law' },
+  { value: 'Constitutional Law', label: 'Constitutional Law' },
+  { value: 'Criminal Law', label: 'Criminal Law' },
+  { value: 'Legal Theory', label: 'Legal Theory' },
+  { value: 'International Law', label: 'International Law' },
+  { value: 'Procedural Law', label: 'Procedural Law' },
 ];
 
+// Define the schema for a single option pair (English and Nepali)
 const optionSchema = z.object({
   en: z.string().min(1, 'English option cannot be empty.'),
   ne: z.string().min(1, 'Nepali option cannot be empty.'),
 });
 
+// Define the main form schema using Zod for validation
 const formSchema = z.object({
   category: z.string().min(1, 'Category is required.'),
   questionEn: z.string().min(10, 'English question must be at least 10 characters.'),
   questionNe: z.string().min(10, 'Nepali question must be at least 10 characters.'),
-  options: z.array(optionSchema).min(2, 'At least two options are required.').max(6, 'Maximum of six options allowed.'),
+  options: z.array(optionSchema)
+            .min(2, 'At least two options are required.')
+            .max(6, 'Maximum of six options allowed.')
+             .refine(options => {
+                 const englishOptions = options.map(opt => opt.en.trim().toLowerCase());
+                 return new Set(englishOptions).size === englishOptions.length;
+             }, { message: 'All English options must be unique.' })
+             .refine(options => {
+                 const nepaliOptions = options.map(opt => opt.ne.trim().toLowerCase());
+                 return new Set(nepaliOptions).size === nepaliOptions.length;
+             }, { message: 'All Nepali options must be unique.' }),
   correctAnswerEn: z.string().min(1, 'Correct English answer must be selected.'),
+}).refine(data => data.options.some(opt => opt.en === data.correctAnswerEn), {
+    message: "The selected correct answer must be one of the provided English options.",
+    path: ["correctAnswerEn"],
 });
 
 type McqFormValues = z.infer<typeof formSchema>;
 
-// Dummy function to simulate fetching existing MCQ data
-async function fetchMcqData(id: string): Promise<Question | null> {
-  console.log(`Fetching data for MCQ ID: ${id}`);
-  await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
-  // Find in dummy data or return null if not found
-  const dummyData: Question[] = [
-     {
-       id: '1',
-       // Assume category value matches one in `categories`
-       category: 'constitutional-law',
-       question: { en: 'Which article guarantees freedom?', ne: 'कुन धाराले स्वतन्त्रता दिन्छ?' },
-       options: { en: ['Art 16', 'Art 17'], ne: ['धारा १६', 'धारा १७'] },
-       correctAnswer: { en: 'Art 17', ne: 'धारा १७' },
-     },
-       {
-       id: '2',
-       category: 'legal-theory',
-       question: { en: 'Father of Natural Law?', ne: 'प्राकृतिक कानूनका पिता?' },
-       options: { en: ['Austin', 'Aquinas'], ne: ['अस्टिन', 'एक्विनास'] },
-       correctAnswer: { en: 'Aquinas', ne: 'एक्विनास' },
-     },
-   ];
-   // Map API structure to form structure if needed
-   const found = dummyData.find(q => q.id === id);
-    if (!found) return null;
-
-     // Need to transform the options structure
-     const transformedOptions = found.options.en.map((enOption, index) => ({
-       en: enOption,
-       ne: found.options.ne[index] || '', // Handle potential mismatch
-     }));
-
-     // Return data compatible with form schema
-    return {
-         ...found,
-         // Ensure the return structure matches what the form expects if it differs from API
-         // options structure might need transformation before setting default values
-         // For this example, assuming the fetch returns data structured like the form expects
-         // BUT we need to transform the options:
-         options: { en: [], ne: [] }, // Placeholder, we set defaults later
-         _optionsForForm: transformedOptions, // Temporary holder for transformation
-         _correctAnswerEnForForm: found.correctAnswer.en,
-    } as any; // Using any for the temporary fields
-}
 
 export default function EditMCQPage() {
   const router = useRouter();
   const params = useParams();
   const mcqId = params.id as string; // Get ID from route parameters
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const [isFetching, setIsFetching] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false); // For form submission loading
+  const [isFetching, setIsFetching] = useState(true); // For initial data fetch loading
+  const [fetchError, setFetchError] = useState<string | null>(null); // For fetch errors
 
   const form = useForm<McqFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { // Set initial empty defaults
+    defaultValues: { // Set initial empty defaults, will be reset after fetch
       category: '',
       questionEn: '',
       questionNe: '',
       options: [],
       correctAnswerEn: '',
     },
+     mode: 'onChange',
   });
 
     // Fetch existing data on component mount
@@ -120,6 +93,7 @@ export default function EditMCQPage() {
      if (!mcqId) {
          setFetchError("Invalid MCQ ID.");
          setIsFetching(false);
+         toast({ variant: "destructive", title: "Error", description: "No MCQ ID provided." });
          return;
      };
 
@@ -127,15 +101,21 @@ export default function EditMCQPage() {
        setIsFetching(true);
        setFetchError(null);
        try {
-         const data = await fetchMcqData(mcqId);
-         if (data && data._optionsForForm) {
-           // Reset the form with fetched data after transformation
+         const data = await getMcqById(mcqId); // Use Firestore function
+         if (data) {
+           // Transform Firestore data to form structure if needed
+           const transformedOptions = data.options.en.map((enOption, index) => ({
+             en: enOption,
+             ne: data.options.ne[index] || '', // Handle potential mismatch
+           }));
+
+           // Reset the form with fetched data
            form.reset({
              category: data.category,
              questionEn: data.question.en,
              questionNe: data.question.ne,
-             options: data._optionsForForm,
-             correctAnswerEn: data._correctAnswerEnForForm,
+             options: transformedOptions,
+             correctAnswerEn: data.correctAnswer.en,
            });
          } else {
            setFetchError(`MCQ with ID ${mcqId} not found.`);
@@ -151,7 +131,7 @@ export default function EditMCQPage() {
      };
 
      loadData();
-   }, [mcqId, form]); // Dependency array includes mcqId and form instance
+   }, [mcqId, form, toast]); // Added toast to dependency array
 
 
   const { fields, append, remove } = useFieldArray({
@@ -159,6 +139,7 @@ export default function EditMCQPage() {
     name: "options",
   });
 
+  // Handle form submission for update
   const onSubmit = async (data: McqFormValues) => {
     setIsLoading(true);
     console.log("Updated Form Data:", data);
@@ -172,18 +153,22 @@ export default function EditMCQPage() {
      }
      const correctAnswerNe = correctOptionPair.ne;
 
-    // --- Mock API Call for Update ---
+    // --- Update Firestore ---
     try {
-       const payload = {
-         id: mcqId,
+       // Construct payload for Firestore update
+       const payload: Partial<Omit<Question, 'id' | 'createdAt'>> = { // Partial because we only update fields
          category: data.category,
          question: { en: data.questionEn, ne: data.questionNe },
-         options: data.options,
+         options: {
+            en: data.options.map(opt => opt.en),
+            ne: data.options.map(opt => opt.ne),
+         },
          correctAnswer: { en: data.correctAnswerEn, ne: correctAnswerNe },
+         // 'updatedAt' will be set automatically by the updateMcq function
        };
        console.log("Payload to send for update:", payload);
 
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
+      await updateMcq(mcqId, payload); // Call Firestore update function
 
       toast({
         title: 'MCQ Updated Successfully',
@@ -195,20 +180,23 @@ export default function EditMCQPage() {
       toast({
         variant: 'destructive',
         title: 'Error Updating MCQ',
-        description: 'Something went wrong. Please try again.',
+        description: 'Something went wrong while saving changes. Please try again.',
       });
     } finally {
       setIsLoading(false);
     }
-    // --- End Mock API Call ---
+    // --- End Firestore Update ---
   };
 
+    // Watch options for the correct answer dropdown
     const currentOptions = form.watch('options');
 
+   // Show loading skeleton while fetching initial data
    if (isFetching) {
-     return <EditMCQLoadingSkeleton />;
+     return <EditMCQLoadingSkeleton mcqId={mcqId} />;
    }
 
+   // Show error message if fetching failed
    if (fetchError) {
      return (
        <div className="flex flex-col min-h-screen">
@@ -225,9 +213,10 @@ export default function EditMCQPage() {
      );
    }
 
+  // Render the form once data is loaded
   return (
      <div className="flex flex-col min-h-screen">
-       <AdminHeader title={`Edit MCQ (ID: ${mcqId})`} />
+       <AdminHeader title={`Edit MCQ`} /> {/* Removed ID from title for simplicity */}
        <main className="flex-1 p-6 md:p-10 bg-muted/30 flex justify-center">
          <Form {...form}>
            <form onSubmit={form.handleSubmit(onSubmit)} className="w-full max-w-3xl space-y-8">
@@ -241,7 +230,7 @@ export default function EditMCQPage() {
                      </Button>
                    </Link>
                  </div>
-                 <CardDescription>Update the details for this question.</CardDescription>
+                 <CardDescription>Update the details for this question (ID: {mcqId}).</CardDescription>
                </CardHeader>
                <CardContent className="space-y-6">
                   {/* Category */}
@@ -387,7 +376,7 @@ export default function EditMCQPage() {
                          <SelectContent>
                             {currentOptions.map((option, index) => (
                                option.en && ( // Only show if English option is filled
-                                 <SelectItem key={index} value={option.en}>
+                                 <SelectItem key={`${field.name}-${index}`} value={option.en}>
                                    {option.en}
                                  </SelectItem>
                                )
@@ -419,11 +408,11 @@ export default function EditMCQPage() {
    );
 }
 
-
-function EditMCQLoadingSkeleton() {
+// Loading Skeleton component
+function EditMCQLoadingSkeleton({ mcqId }: { mcqId?: string }) {
     return (
       <div className="flex flex-col min-h-screen">
-        <AdminHeader title="Edit MCQ" />
+        <AdminHeader title={`Edit MCQ ${mcqId ? `(ID: ${mcqId})` : ''}`} />
          <main className="flex-1 p-6 md:p-10 bg-muted/30 flex justify-center">
             <div className="w-full max-w-3xl space-y-8">
                 <Card className="border shadow-sm">
@@ -455,16 +444,18 @@ function EditMCQLoadingSkeleton() {
                            <div>
                                <Skeleton className="h-4 w-24 mb-2" />
                                <div className="space-y-4">
-                                   {[...Array(2)].map((_, i) => (
-                                     <div key={i} className="flex gap-2 items-center border p-3 rounded-md">
-                                       <Skeleton className="h-8 w-8" />
-                                       <Skeleton className="h-10 flex-1" />
-                                       <Skeleton className="h-10 flex-1" />
-                                       <Skeleton className="h-8 w-8" />
+                                   {[...Array(2)].map((_, i) => ( // Skeleton for 2 options
+                                     <div key={i} className="flex flex-col sm:flex-row gap-2 items-start border p-3 rounded-md">
+                                       <Skeleton className="h-5 w-6 mt-1 sm:mt-2" /> {/* # Skeleton */}
+                                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            <Skeleton className="h-10 w-full" /> {/* Option EN */}
+                                            <Skeleton className="h-10 w-full" /> {/* Option NE */}
+                                        </div>
+                                       <Skeleton className="h-8 w-8 rounded-md mt-2 sm:mt-0 shrink-0" /> {/* Delete Button */}
                                      </div>
                                    ))}
                                </div>
-                               <Skeleton className="h-9 w-28 mt-3" />
+                               <Skeleton className="h-9 w-28 mt-3" /> {/* Add Option Button */}
                            </div>
                             {/* Correct Answer Skeleton */}
                            <div>
@@ -473,7 +464,7 @@ function EditMCQLoadingSkeleton() {
                            </div>
                      </CardContent>
                       <CardFooter className="border-t px-6 py-4">
-                          <Skeleton className="h-10 w-32" />
+                          <Skeleton className="h-10 w-32" /> {/* Update Button */}
                       </CardFooter>
                 </Card>
             </div>
