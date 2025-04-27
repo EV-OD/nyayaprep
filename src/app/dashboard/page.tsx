@@ -27,7 +27,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { getUserProfile, getUserQuizResults } from '@/lib/firebase/firestore';
 import type { UserProfile, QuizResult, SubscriptionPlan } from '@/types/user';
 import { formatDistanceToNow } from 'date-fns';
-import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video, History, BarChart2, X } from 'lucide-react'; // Import icons, including History, BarChart2, X
+import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video, History, BarChart2, X, ExternalLink } from 'lucide-react'; // Added ExternalLink
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation'; // Import useRouter
 
@@ -163,6 +163,9 @@ export default function UserDashboardPage() {
             </AlertDialogContent>
         </AlertDialog>
      );
+
+     const pdfUrl = "https://ag.gov.np/files/Constitution-of-Nepal_2072_Eng_www.moljpa.gov_.npDate-72_11_16.pdf";
+
 
   return (
     <div className="p-6 md:p-10">
@@ -413,11 +416,16 @@ export default function UserDashboardPage() {
                  )}
                  {/* Actual content goes here */}
                   <div className={cn("space-y-3", contentLocked ? "opacity-30 pointer-events-none" : "")}>
-                      {/* Example Content Item */}
+                      {/* Constitution PDF Link */}
                       <div className="flex justify-between items-center p-3 border rounded-md">
                           <span className="text-sm font-medium">Constitution of Nepal - Key Articles PDF</span>
-                          <Button variant="outline" size="sm" disabled={contentLocked}>Download</Button>
+                          <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className={cn(contentLocked ? 'pointer-events-none' : '')}>
+                             <Button variant="outline" size="sm" disabled={contentLocked} aria-disabled={contentLocked}>
+                                Open PDF <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                             </Button>
+                          </a>
                       </div>
+                      {/* Other Resource Items */}
                       <div className="flex justify-between items-center p-3 border rounded-md">
                           <span className="text-sm font-medium">Legal Theory Summaries</span>
                           <Button variant="outline" size="sm" disabled={contentLocked}>View</Button>
