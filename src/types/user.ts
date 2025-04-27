@@ -1,6 +1,9 @@
 import type { Answer } from './quiz'; // Import if needed for detailed results
 import type { Timestamp } from 'firebase/firestore'; // Import Timestamp
 
+// Define possible subscription plans
+export type SubscriptionPlan = 'free' | 'basic' | 'premium';
+
 export interface UserProfile {
   uid: string;
   name: string;
@@ -8,6 +11,8 @@ export interface UserProfile {
   phone: string;
   role: 'user' | 'admin'; // Role definition
   createdAt: Timestamp; // Track when the user was created
+  subscription?: SubscriptionPlan; // Optional: Track user's subscription plan
+  profilePicture?: string | null; // Optional: URL to the profile picture in storage
 }
 
 export interface QuizResult {

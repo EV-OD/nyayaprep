@@ -15,7 +15,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { getUserProfile, getUserQuizResults } from '@/lib/firebase/firestore';
 import type { UserProfile, QuizResult } from '@/types/user';
 import { formatDistanceToNow } from 'date-fns';
-import { FileText, User as UserIcon, Target } from 'lucide-react'; // Import icons
+import { FileText, User as UserIcon, Target, Star, Zap } from 'lucide-react'; // Import icons
 
 export default function UserDashboardPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -59,6 +59,15 @@ export default function UserDashboardPage() {
         return Math.round(totalPercentage / results.length);
     };
 
+    const getSubscriptionBadgeVariant = (plan?: string) => {
+        switch (plan) {
+            case 'premium': return 'default'; // Primary color
+            case 'basic': return 'secondary';
+            case 'free': return 'outline';
+            default: return 'outline';
+        }
+    };
+
   return (
     <div className="p-6 md:p-10">
       <h1 className="text-2xl md:text-3xl font-bold mb-6">My Dashboard</h1>
@@ -66,24 +75,42 @@ export default function UserDashboardPage() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
         {/* Profile Summary Card */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Welcome Back</CardTitle>
-            <UserIcon className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="pb-2">
+             <div className="flex flex-row items-center justify-between space-y-0 mb-1">
+                 <CardTitle className="text-sm font-medium">Welcome Back</CardTitle>
+                 <UserIcon className="h-4 w-4 text-muted-foreground" />
+             </div>
+             {loadingProfile ? (
+                <Skeleton className="h-8 w-3/4" />
+             ) : (
+                <div className="text-2xl font-bold">{profile?.name || 'User'}</div>
+             )}
           </CardHeader>
-          <CardContent>
-            {loadingProfile ? (
-              <Skeleton className="h-8 w-3/4 mb-2" />
-            ) : (
-              <div className="text-2xl font-bold mb-1">{profile?.name || 'User'}</div>
-            )}
-            {loadingProfile ? (
-               <Skeleton className="h-4 w-1/2" />
-            ) : (
-               <p className="text-xs text-muted-foreground">{profile?.email}</p>
-            )}
-            <Link href="/dashboard/profile" passHref className="mt-3 inline-block">
-              <Button variant="outline" size="sm">View Profile</Button>
-            </Link>
+          <CardContent className="pt-0">
+             {loadingProfile ? (
+               <Skeleton className="h-4 w-1/2 mb-3" />
+             ) : (
+               <p className="text-xs text-muted-foreground mb-3">{profile?.email}</p>
+             )}
+             {/* Subscription Status */}
+             <div className="flex items-center justify-between gap-2 mt-1">
+                 {loadingProfile ? (
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                 ) : (
+                    <Badge variant={getSubscriptionBadgeVariant(profile?.subscription)}>
+                         <span className="capitalize">{profile?.subscription || 'Free'}</span> Plan
+                     </Badge>
+                 )}
+                {profile?.subscription !== 'premium' && (
+                     <Button variant="link" size="sm" className="p-0 h-auto text-xs" disabled>
+                         Upgrade Plan
+                         <Zap className="ml-1 h-3 w-3" />
+                     </Button>
+                 )}
+             </div>
+             <Link href="/dashboard/profile" passHref className="mt-4 inline-block">
+               <Button variant="outline" size="sm">View Profile</Button>
+             </Link>
           </CardContent>
         </Card>
 
@@ -118,7 +145,9 @@ export default function UserDashboardPage() {
             </CardHeader>
             <CardContent>
                  <p className="text-primary-foreground/90 mb-4">
-                     Take a new quiz to test your knowledge.
+                     {profile?.subscription === 'free'
+                       ? 'Take your daily free quiz.'
+                       : 'Take a new quiz to test your knowledge.'}
                  </p>
                  <Link href="/quiz" passHref>
                     <Button variant="secondary" size="lg" className="w-full">Start New Quiz</Button>
