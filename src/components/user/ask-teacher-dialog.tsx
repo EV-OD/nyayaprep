@@ -72,7 +72,7 @@ export function AskTeacherDialog({
         <DialogHeader>
           <DialogTitle>Ask a Teacher</DialogTitle>
           <DialogDescription>
-            Enter your question below. You have {remaining} question(s) left today for the {planName} plan.
+            Enter your question about MCQs or quizzes below. You have {remaining} question(s) left today for the {planName} plan. {/* Updated description */}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -81,7 +81,7 @@ export function AskTeacherDialog({
               <Label htmlFor="question">Your Question</Label>
               <Textarea
                 id="question"
-                placeholder="Type your legal question here..."
+                placeholder="Type your question about MCQs or quizzes here..." // Updated placeholder
                 value={questionText}
                 onChange={(e) => setQuestionText(e.target.value)}
                 rows={6}
@@ -111,3 +111,5 @@ export function AskTeacherDialog({
     </Dialog>
   );
 }
+
+    

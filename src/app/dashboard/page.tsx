@@ -550,7 +550,7 @@ export default function UserDashboardPage() {
              <Card className="relative overflow-hidden flex flex-col">
               <CardHeader>
                  <CardTitle className="flex items-center gap-2"><MessageSquareQuote size={20} /> Ask a Teacher</CardTitle> {/* Updated Icon */}
-                 <CardDescription>Get your legal questions answered by experts.</CardDescription>
+                 <CardDescription>Get your MCQs and quiz queries answered by experts.</CardDescription> {/* Updated Description */}
               </CardHeader>
               <CardContent className="flex-grow relative flex flex-col items-center justify-center text-center">
                   {askTeacherLocked && (
@@ -639,6 +639,8 @@ function SubscriptionSkeleton() {
 }
 
 
+
+    
 
     
 
