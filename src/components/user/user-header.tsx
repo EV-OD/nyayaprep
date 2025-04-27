@@ -1,0 +1,126 @@
+
+'use client';
+
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { LogOut, User, LayoutDashboard, ClipboardList, BookOpenCheck } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useToast } from '@/hooks/use-toast';
+import { auth } from '@/lib/firebase/config';
+import { signOut, User as FirebaseUser } from 'firebase/auth';
+import { useEffect, useState } from 'react';
+import { getUserProfile } from '@/lib/firebase/firestore';
+import type { UserProfile } from '@/types/user';
+
+export function UserHeader() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+
+   useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged(async (user) => {
+            setCurrentUser(user);
+            if (user) {
+                setLoadingProfile(true);
+                try {
+                    const profile = await getUserProfile(user.uid);
+                    setUserProfile(profile);
+                } catch (error) {
+                    console.error("Failed to fetch user profile:", error);
+                    // Handle error appropriately, maybe show a toast
+                } finally {
+                    setLoadingProfile(false);
+                }
+            } else {
+                setUserProfile(null);
+                setLoadingProfile(false);
+            }
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out.",
+      });
+      router.replace('/login'); // Redirect to login page
+    } catch (error) {
+      console.error("Logout Error:", error);
+      toast({
+        variant: "destructive",
+        title: "Logout Failed",
+        description: "An error occurred during logout. Please try again.",
+      });
+    }
+  };
+
+  const getInitials = (name?: string): string => {
+        if (!name) return 'U';
+        const names = name.split(' ');
+        if (names.length === 1) return names[0][0]?.toUpperCase() || 'U';
+        return (names[0][0] + (names[names.length - 1][0] || '')).toUpperCase();
+    };
+
+  return (
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 sm:px-6">
+      <div className="flex items-center gap-4">
+        <Link href="/dashboard" className="text-lg font-semibold md:text-xl text-primary flex items-center gap-2">
+           <BookOpenCheck size={24} /> NyayaPrep
+        </Link>
+         {/* Optional: Breadcrumbs or navigation links */}
+          <nav className="hidden md:flex items-center gap-4 text-sm ml-6">
+           <Link href="/dashboard" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+              <LayoutDashboard size={16} /> Dashboard
+           </Link>
+           <Link href="/quiz" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+              <ClipboardList size={16} /> Start New Quiz
+           </Link>
+         </nav>
+      </div>
+      <div className="flex items-center gap-4">
+         <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" className="overflow-hidden rounded-full h-8 w-8">
+              <Avatar className="h-8 w-8">
+                 {/* Future: <AvatarImage src={currentUser?.photoURL || undefined} alt="User" /> */}
+                 <AvatarFallback>
+                     {loadingProfile ? '...' : getInitials(userProfile?.name)}
+                  </AvatarFallback>
+              </Avatar>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>{userProfile?.name || currentUser?.email || 'My Account'}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+             <DropdownMenuItem onClick={() => router.push('/dashboard/profile')}>
+               <User className="mr-2 h-4 w-4" />
+               Profile
+             </DropdownMenuItem>
+             {/* Add other relevant links here if needed */}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer">
+               <LogOut className="mr-2 h-4 w-4" />
+              Logout
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </header>
+  );
+}

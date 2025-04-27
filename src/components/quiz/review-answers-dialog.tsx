@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -31,7 +32,7 @@ export function ReviewAnswersDialog({
   questions,
   language,
 }: ReviewAnswersDialogProps) {
-  const getQuestionById = (id: string) => questions.find(q => q.id === id);
+  const getQuestionById = (id: string): Question | undefined => questions.find(q => q.id === id);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -39,15 +40,15 @@ export function ReviewAnswersDialog({
         <DialogHeader>
           <DialogTitle>Review Your Answers</DialogTitle>
           <DialogDescription>
-            Check your selections before submitting or see your results.
+            Check your selections or review your final results.
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="flex-grow border rounded-md my-4 max-h-[60vh] min-h-[30vh]">
           <div className="p-4 space-y-4">
             {questions.map((question, index) => {
               const userAnswer = answers.find(a => a.questionId === question.id);
-              const questionText = question.question[language];
-              const correctAnswerText = question.correctAnswer[language];
+              const questionText = question.question?.[language] || 'Question text unavailable';
+              const correctAnswerText = question.correctAnswer?.[language] || 'Correct answer unavailable';
               const selectedAnswerText = userAnswer?.selectedAnswer;
               const isCorrect = userAnswer?.isCorrect;
               const isAnswered = userAnswer && userAnswer.selectedAnswer !== "Not Answered";
@@ -67,6 +68,7 @@ export function ReviewAnswersDialog({
                            {isCorrect ? <CheckCircle size={14} /> : <XCircle size={14} />}
                            Your Answer: <span className="font-medium">{selectedAnswerText}</span>
                         </p>
+                         {/* Show correct answer only if the selected one was wrong */}
                          {!isCorrect && (
                            <p className="flex items-center gap-1 text-green-600 dark:text-green-400">
                               <CheckCircle size={14} /> Correct Answer: <span className="font-medium">{correctAnswerText}</span>
@@ -74,16 +76,21 @@ export function ReviewAnswersDialog({
                           )}
                       </>
                     ) : (
+                       // User did not answer this question
                        <p className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
                          <AlertCircle size={14} /> Not Answered
-                         <span className="ml-2 text-muted-foreground">(Correct: {correctAnswerText})</span>
+                         {/* Always show the correct answer if unanswered */}
+                         <span className="ml-2 text-muted-foreground">(Correct: <span className="font-medium text-green-600 dark:text-green-400">{correctAnswerText}</span>)</span>
                        </p>
                     )}
                   </div>
                 </div>
               );
             })}
-            {answers.length === 0 && questions.length > 0 && (
+            {questions.length === 0 && (
+                <p className="text-center text-muted-foreground p-4">No questions to review.</p>
+            )}
+             {questions.length > 0 && answers.length === 0 && (
                 <p className="text-center text-muted-foreground p-4">No answers selected yet.</p>
             )}
           </div>

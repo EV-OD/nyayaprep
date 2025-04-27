@@ -1,0 +1,126 @@
+
+'use client';
+
+import * as React from 'react';
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { auth } from '@/lib/firebase/config';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { getUserProfile } from '@/lib/firebase/firestore';
+import type { UserProfile } from '@/types/user';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input'; // Use Input for display
+import { format } from 'date-fns'; // For formatting date
+
+export default function UserProfilePage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        setLoading(true);
+        try {
+          const userProfile = await getUserProfile(currentUser.uid);
+          setProfile(userProfile);
+        } catch (error) {
+          console.error('Failed to load user profile:', error);
+          // Add toast notification here if needed
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        // User is logged out (layout should handle redirect)
+        setProfile(null);
+        setLoading(false);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  return (
+    <div className="p-6 md:p-10 flex justify-center">
+      <Card className="w-full max-w-2xl">
+        <CardHeader>
+          <CardTitle className="text-2xl">My Profile</CardTitle>
+          <CardDescription>View your account details.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {loading ? (
+            <ProfileSkeleton />
+          ) : profile ? (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="space-y-1">
+                    <Label htmlFor="name">Full Name</Label>
+                    <Input id="name" value={profile.name} readOnly disabled className="bg-muted/50"/>
+                 </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="email">Email Address</Label>
+                    <Input id="email" type="email" value={profile.email} readOnly disabled className="bg-muted/50"/>
+                  </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="space-y-1">
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <Input id="phone" type="tel" value={profile.phone} readOnly disabled className="bg-muted/50"/>
+                 </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="role">Account Type</Label>
+                    <Input id="role" value={profile.role.charAt(0).toUpperCase() + profile.role.slice(1)} readOnly disabled className="bg-muted/50"/>
+                 </div>
+              </div>
+               <div className="space-y-1">
+                  <Label htmlFor="createdAt">Member Since</Label>
+                  <Input id="createdAt" value={profile.createdAt ? format(profile.createdAt.toDate(), 'PPP') : 'N/A'} readOnly disabled className="bg-muted/50"/>
+               </div>
+
+              {/* Add edit profile button later if needed */}
+              {/* <div className="pt-4">
+                <Button variant="outline">Edit Profile (Coming Soon)</Button>
+              </div> */}
+            </>
+          ) : (
+            <p className="text-center text-muted-foreground py-6">Could not load profile information.</p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ProfileSkeleton() {
+    return (
+        <div className="space-y-6">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                    <Skeleton className="h-4 w-1/4" />
+                    <Skeleton className="h-10 w-full" />
+                 </div>
+                  <div className="space-y-2">
+                     <Skeleton className="h-4 w-1/4" />
+                     <Skeleton className="h-10 w-full" />
+                  </div>
+              </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                     <Skeleton className="h-4 w-1/4" />
+                     <Skeleton className="h-10 w-full" />
+                  </div>
+                   <div className="space-y-2">
+                      <Skeleton className="h-4 w-1/4" />
+                      <Skeleton className="h-10 w-full" />
+                   </div>
+               </div>
+               <div className="space-y-2">
+                  <Skeleton className="h-4 w-1/4" />
+                  <Skeleton className="h-10 w-full" />
+               </div>
+        </div>
+    );
+}
+

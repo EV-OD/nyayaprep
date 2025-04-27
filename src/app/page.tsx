@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
 export default function Home() {
-  // This page can serve as a landing or welcome page.
-  // For now, it provides a link to start the quiz.
+  // This page serves as a landing or welcome page.
+  // Provides links to start the quiz or log in/register.
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-br from-background to-muted/50">
       <div className="text-center max-w-2xl">
@@ -17,11 +17,12 @@ export default function Home() {
            <Link href="/quiz" passHref>
               <Button size="lg" className="w-full sm:w-auto">Start Quiz</Button>
             </Link>
-          <Link href="/admin" passHref>
+          <Link href="/login" passHref>
             <Button size="lg" variant="outline" className="w-full sm:w-auto">
-              Admin Login
+              Login / Register
             </Button>
           </Link>
+          {/* Removed separate Admin Login button */}
         </div>
       </div>
       {/* Placeholder for potential future elements like featured categories or testimonials */}
