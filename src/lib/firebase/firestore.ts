@@ -1,4 +1,5 @@
 
+
 import { db, auth } from './config';
 import {
   collection,
@@ -13,6 +14,7 @@ import {
   orderBy,
   limit,
   serverTimestamp,
+  updateDoc, // Import updateDoc for updating validation status
 } from 'firebase/firestore';
 import type { UserProfile, QuizResult, SubscriptionPlan } from '@/types/user';
 import type { User } from 'firebase/auth';
@@ -22,6 +24,7 @@ const quizResultsCollection = collection(db, 'quizResults');
 
 /**
  * Creates or updates a user profile document in Firestore.
+ * Initializes the 'validated' field based on the subscription plan.
  * @param user Firebase User object.
  * @param additionalData Additional data like name, phone, subscription, and profile picture URL.
  */
@@ -46,12 +49,13 @@ export const createUserProfileDocument = async (
     subscription: additionalData.subscription, // Save subscription plan
     profilePicture: additionalData.profilePicture || null, // Save picture URL or null
     createdAt: Timestamp.now(), // Use Firestore Timestamp
+    validated: additionalData.subscription === 'free', // Automatically validated if free, otherwise false
   };
 
   try {
     // Use setDoc with merge: true to create or update, preventing overwrite of existing fields unless specified
     await setDoc(userRef, userProfile, { merge: true });
-    console.log('User profile created/updated successfully for UID:', user.uid);
+    console.log(`User profile created/updated successfully for UID: ${user.uid}. Validated: ${userProfile.validated}`);
   } catch (error) {
     console.error('Error creating/updating user profile document:', error);
     throw error; // Re-throw the error to be handled by the caller
@@ -81,6 +85,7 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
           subscription: data.subscription || 'free', // Default to 'free' if not set
           profilePicture: data.profilePicture || null,
           createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(), // Handle potential mismatch
+          validated: data.validated === true, // Ensure boolean, default to false if missing/undefined
       };
       return profile;
     } else {
@@ -171,12 +176,15 @@ export const getUserQuizResults = async (userId: string, count?: number): Promis
           `3. Fields: 'userId' (Ascending), 'completedAt' (Descending).\n` +
           `Dashboard functionality for recent results might be limited until this index is active.`
         );
+         // Inform the user via console or a UI element if possible
+         // Example: Display a message on the dashboard if this warning occurs
     }
     // Return empty array or re-throw, depending on how you want to handle errors upstream
      return []; // Return empty array to prevent crashing the UI
     // throw error; // Or re-throw the error
   }
 };
+
 
 /**
  * Checks if the current user is an admin.
@@ -197,5 +205,22 @@ export const isCurrentUserAdmin = async (): Promise<boolean> => {
     } catch (error) {
         console.error("Error checking admin status:", error);
         return false; // Default to false on error
+    }
+};
+
+
+// Function to manually update the validation status (e.g., by an admin)
+// This function would typically be called from a secure admin interface or backend process.
+export const setUserValidationStatus = async (uid: string, isValidated: boolean): Promise<void> => {
+    if (!uid) throw new Error("User UID is required.");
+    const userRef = doc(usersCollection, uid);
+    try {
+        await updateDoc(userRef, {
+            validated: isValidated,
+        });
+        console.log(`User ${uid} validation status updated to ${isValidated}`);
+    } catch (error) {
+        console.error(`Error updating validation status for user ${uid}:`, error);
+        throw error;
     }
 };

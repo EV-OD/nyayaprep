@@ -1,9 +1,11 @@
+
 'use client';
 
 import * as React from 'react';
 import { QuizClient } from '@/components/quiz/quiz-client';
 import type { Question } from '@/types/quiz';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PublicNavbar } from '@/components/layout/public-navbar'; // Import PublicNavbar
 
 // Dummy data for initial structure - replace with actual data fetching
 const dummyQuestions: Question[] = [
@@ -83,34 +85,47 @@ export default function QuizPage() {
     fetchQuestions();
   }, []);
 
-  if (loading) {
-    return <QuizLoadingSkeleton />;
+  const renderContent = () => {
+      if (loading) {
+        return <QuizLoadingSkeleton />;
+      }
+
+      if (error) {
+        return (
+          <div className="flex flex-1 items-center justify-center p-4 text-center">
+            <p className="text-destructive text-lg">{error}</p>
+          </div>
+        );
+      }
+
+      if (questions.length === 0) {
+         return (
+           <div className="flex flex-1 items-center justify-center p-4 text-center">
+             <p className="text-muted-foreground text-lg">No questions available at the moment.</p>
+           </div>
+         );
+       }
+      return <QuizClient questions={questions} />;
   }
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen p-4 text-center">
-        <p className="text-destructive text-lg">{error}</p>
+  return (
+      <div className="flex flex-col min-h-screen">
+          <PublicNavbar />
+          <main className="flex flex-1">
+             {renderContent()}
+          </main>
+           {/* Optionally add a footer if needed for public pages */}
+           {/* <footer className="py-4 text-center text-muted-foreground text-sm bg-background border-t">
+               NyayaPrep &copy; {new Date().getFullYear()}
+           </footer> */}
       </div>
-    );
-  }
-
-  if (questions.length === 0) {
-     return (
-       <div className="flex items-center justify-center min-h-screen p-4 text-center">
-         <p className="text-muted-foreground text-lg">No questions available at the moment.</p>
-       </div>
-     );
-   }
-
-
-  return <QuizClient questions={questions} />;
+  );
 }
 
 
 function QuizLoadingSkeleton() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 md:p-8">
+    <div className="flex flex-col items-center justify-center flex-1 p-4 md:p-8">
       <div className="w-full max-w-2xl bg-card p-6 md:p-8 rounded-xl shadow-lg border">
          <Skeleton className="h-4 w-1/4 mb-4" />
         <Skeleton className="h-8 w-full mb-6" />
