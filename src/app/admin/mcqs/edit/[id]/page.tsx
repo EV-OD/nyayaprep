@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -90,7 +91,10 @@ export default function EditMCQPage() {
 
     // Fetch existing data on component mount
    useEffect(() => {
-     if (!mcqId) {
+     // Use a local variable for mcqId within the effect's scope
+     const currentMcqId = mcqId;
+
+     if (!currentMcqId) {
          setFetchError("Invalid MCQ ID.");
          setIsFetching(false);
          toast({ variant: "destructive", title: "Error", description: "No MCQ ID provided." });
@@ -101,7 +105,8 @@ export default function EditMCQPage() {
        setIsFetching(true);
        setFetchError(null);
        try {
-         const data = await getMcqById(mcqId); // Use Firestore function
+         // Use the local variable currentMcqId
+         const data = await getMcqById(currentMcqId);
          if (data) {
            // Transform Firestore data to form structure if needed
            const transformedOptions = data.options.en.map((enOption, index) => ({
@@ -118,7 +123,7 @@ export default function EditMCQPage() {
              correctAnswerEn: data.correctAnswer.en,
            });
          } else {
-           setFetchError(`MCQ with ID ${mcqId} not found.`);
+           setFetchError(`MCQ with ID ${currentMcqId} not found.`);
            toast({ variant: "destructive", title: "Error", description: `MCQ not found.` });
          }
        } catch (error) {
@@ -131,7 +136,8 @@ export default function EditMCQPage() {
      };
 
      loadData();
-   }, [mcqId, form, toast]); // Added toast to dependency array
+     // mcqId is the dependency derived from params
+   }, [mcqId, form, toast]);
 
 
   const { fields, append, remove } = useFieldArray({

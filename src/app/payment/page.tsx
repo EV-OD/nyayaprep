@@ -25,6 +25,7 @@ type SupportedPlan = keyof typeof planDetails;
 function PaymentComponent() {
     const router = useRouter();
     const searchParams = useSearchParams();
+    // Directly access plan from searchParams within the component
     const plan = searchParams.get('plan') as SupportedPlan | null;
     const [isLoading, setIsLoading] = React.useState(false);
 
@@ -69,7 +70,7 @@ function PaymentComponent() {
     const currentPlan = plan ? planDetails[plan] : null;
 
     if (!currentPlan) {
-        // Show loading or redirecting state
+        // Show loading or redirecting state while plan is being determined or redirect happens
         return (
             <div className="flex flex-1 items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -126,6 +127,7 @@ export default function PaymentPage() {
     return (
          <div className="flex flex-col min-h-screen">
             <PublicNavbar />
+             {/* Wrap the component that uses useSearchParams with Suspense */}
              <Suspense fallback={
                 <div className="flex flex-1 items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
