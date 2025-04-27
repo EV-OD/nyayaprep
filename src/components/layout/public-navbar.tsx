@@ -6,9 +6,24 @@ import { Button } from '@/components/ui/button';
 import { BookOpenCheck, LogIn, UserPlus, DollarSign, BrainCircuit } from 'lucide-react'; // Import icons
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useState, useEffect } from 'react'; // Import hooks
+import { auth } from '@/lib/firebase/config'; // Import auth
+import { onAuthStateChanged, User } from 'firebase/auth'; // Import auth types
 
 export function PublicNavbar() {
     const pathname = usePathname();
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [loadingAuth, setLoadingAuth] = useState(true);
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            setCurrentUser(user);
+            setLoadingAuth(false);
+        });
+        // Cleanup subscription on unmount
+        return () => unsubscribe();
+    }, []);
+
 
     const navItems = [
         { href: '/', label: 'Home', icon: <BookOpenCheck size={16} /> },
@@ -41,20 +56,27 @@ export function PublicNavbar() {
                 </nav>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2">
-                <Link href="/login" passHref>
-                    <Button variant={pathname === '/login' ? 'default' : 'outline'} size="sm">
-                        <LogIn className="mr-1.5 h-4 w-4" /> Login
-                    </Button>
-                </Link>
-                <Link href="/pricing" passHref>
-                     {/* Highlight Register if on pricing or register page */}
-                    <Button variant={pathname.startsWith('/register') || pathname === '/pricing' ? 'default' : 'secondary'} size="sm">
-                        <UserPlus className="mr-1.5 h-4 w-4" /> Register
-                    </Button>
-                 </Link>
-            </div>
+            {/* Action Buttons - Conditionally Rendered */}
+            {!loadingAuth && !currentUser && (
+                <div className="flex items-center gap-2">
+                    <Link href="/login" passHref>
+                        <Button variant={pathname === '/login' ? 'default' : 'outline'} size="sm">
+                            <LogIn className="mr-1.5 h-4 w-4" /> Login
+                        </Button>
+                    </Link>
+                    <Link href="/pricing" passHref>
+                        {/* Highlight Register if on pricing or register page */}
+                        <Button variant={pathname.startsWith('/register') || pathname === '/pricing' ? 'default' : 'secondary'} size="sm">
+                            <UserPlus className="mr-1.5 h-4 w-4" /> Register
+                        </Button>
+                    </Link>
+                </div>
+            )}
+             {/* Optional: Add a loading indicator while checking auth state */}
+             {/* {loadingAuth && <Skeleton className="h-9 w-36 rounded-md" />} */}
+             {/* Optional: Show different buttons or user menu if logged in */}
+             {/* {!loadingAuth && currentUser && ( ... show user menu or logout button ... )} */}
         </header>
     );
 }
+
