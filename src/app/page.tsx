@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { ArrowRight, LogIn, UserPlus } from 'lucide-react'; // Added icons
 
 export default function Home() {
   // This page serves as a landing or welcome page.
@@ -15,14 +16,21 @@ export default function Home() {
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
            <Link href="/quiz" passHref>
-              <Button size="lg" className="w-full sm:w-auto">Start Quiz</Button>
+              <Button size="lg" className="w-full sm:w-auto">
+                  Start Quiz <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
             </Link>
           <Link href="/login" passHref>
             <Button size="lg" variant="outline" className="w-full sm:w-auto">
-              Login / Register
+               <LogIn className="mr-2 h-5 w-5" /> Login
             </Button>
           </Link>
-          {/* Removed separate Admin Login button */}
+           {/* Updated Register button link */}
+           <Link href="/register/select-plan" passHref>
+            <Button size="lg" variant="secondary" className="w-full sm:w-auto">
+              <UserPlus className="mr-2 h-5 w-5" /> Register
+            </Button>
+          </Link>
         </div>
       </div>
       {/* Placeholder for potential future elements like featured categories or testimonials */}

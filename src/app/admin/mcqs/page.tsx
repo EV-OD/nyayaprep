@@ -1,8 +1,9 @@
+
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
-import { PlusCircle, Edit, Trash2, Languages, Filter, Search, Loader2 } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Languages, Filter, Search, Loader2, Star } from 'lucide-react'; // Added Star
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -28,8 +29,10 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import type { Question } from '@/types/quiz';
+import type { UserProfile } from '@/types/user'; // Import UserProfile
 import { AdminHeader } from '@/components/admin/admin-header';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils'; // Import cn utility
 
 // Dummy data for initial structure - replace with actual data fetching
 const dummyMCQs: Question[] = [
@@ -67,18 +70,26 @@ const dummyMCQs: Question[] = [
   },
 ];
 
+// Placeholder: Dummy user data for admin view (replace with actual fetching later)
+const dummyUsers: UserProfile[] = [
+    // ... fetch actual user data including subscription later
+];
+
 export default function ManageMCQsPage() {
   const [mcqs, setMcqs] = React.useState<Question[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const [users, setUsers] = React.useState<UserProfile[]>(dummyUsers); // State for users
+  const [isLoadingMCQs, setIsLoadingMCQs] = React.useState(true);
+  const [isLoadingUsers, setIsLoadingUsers] = React.useState(true); // Loading state for users
   const [error, setError] = React.useState<string | null>(null);
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedMcqs, setSelectedMcqs] = React.useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = React.useState<'mcqs' | 'users'>('mcqs'); // State for active tab
   const { toast } = useToast();
 
   React.useEffect(() => {
     // Simulate fetching MCQs
     const fetchMcqs = async () => {
-      setIsLoading(true);
+      setIsLoadingMCQs(true);
       setError(null);
       try {
         await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate delay
@@ -87,17 +98,42 @@ export default function ManageMCQsPage() {
          console.error("Failed to fetch MCQs:", err);
          setError("Failed to load MCQs. Please try again.");
       } finally {
-        setIsLoading(false);
+        setIsLoadingMCQs(false);
       }
     };
-    fetchMcqs();
-  }, []);
 
-  const handleDelete = async (id: string) => {
-    // Add API call logic here to delete the MCQ
+    // Simulate fetching Users (placeholder)
+    const fetchUsers = async () => {
+         setIsLoadingUsers(true);
+         try {
+             await new Promise((resolve) => setTimeout(resolve, 1200)); // Simulate delay
+             // Replace with actual API fetch for users
+             setUsers([
+                // Example dummy users with subscriptions
+                { uid: 'user1', name: 'Alice', email: 'alice@example.com', phone: '123', role: 'user', subscription: 'premium', createdAt: new Date() as any },
+                { uid: 'user2', name: 'Bob', email: 'bob@example.com', phone: '456', role: 'user', subscription: 'basic', createdAt: new Date() as any },
+                { uid: 'user3', name: 'Charlie', email: 'charlie@example.com', phone: '789', role: 'user', subscription: 'free', createdAt: new Date() as any },
+             ]);
+         } catch (err) {
+             console.error("Failed to fetch users:", err);
+             // Handle user fetch error if necessary
+         } finally {
+             setIsLoadingUsers(false);
+         }
+     };
+
+
+    if (activeTab === 'mcqs') {
+        fetchMcqs();
+    } else if (activeTab === 'users') {
+         fetchUsers(); // Fetch users when tab is active
+    }
+  }, [activeTab]); // Refetch when tab changes
+
+  const handleDeleteMCQ = async (id: string) => {
      console.log(`Deleting MCQ with ID: ${id}`);
      try {
-       await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API call
+       await new Promise(resolve => setTimeout(resolve, 500));
         setMcqs(currentMcqs => currentMcqs.filter(mcq => mcq.id !== id));
        toast({
         title: "MCQ Deleted",
@@ -110,15 +146,11 @@ export default function ManageMCQsPage() {
        });
      } catch (err) {
          console.error("Failed to delete MCQ:", err);
-         toast({
-           variant: "destructive",
-           title: "Deletion Failed",
-           description: "Could not delete the MCQ.",
-         });
+         toast({ variant: "destructive", title: "Deletion Failed", description: "Could not delete the MCQ." });
      }
   };
 
-    const handleDeleteSelected = async () => {
+  const handleDeleteSelectedMCQs = async () => {
     const idsToDelete = Array.from(selectedMcqs);
     if (idsToDelete.length === 0) {
         toast({ variant: "destructive", title: "No MCQs Selected", description: "Please select MCQs to delete." });
@@ -126,22 +158,21 @@ export default function ManageMCQsPage() {
     }
     console.log(`Deleting selected MCQs: ${idsToDelete.join(', ')}`);
      try {
-       // Simulate batch delete API call
        await new Promise(resolve => setTimeout(resolve, 800));
        setMcqs(currentMcqs => currentMcqs.filter(mcq => !selectedMcqs.has(mcq.id)));
-       setSelectedMcqs(new Set()); // Clear selection
-       toast({
-         title: "MCQs Deleted",
-         description: `Successfully deleted ${idsToDelete.length} selected MCQ(s).`,
-       });
+       setSelectedMcqs(new Set());
+       toast({ title: "MCQs Deleted", description: `Successfully deleted ${idsToDelete.length} selected MCQ(s).` });
      } catch (err) {
        console.error("Failed to delete selected MCQs:", err);
-       toast({
-         variant: "destructive",
-         title: "Deletion Failed",
-         description: "Could not delete the selected MCQs.",
-       });
+       toast({ variant: "destructive", title: "Deletion Failed", description: "Could not delete the selected MCQs." });
      }
+  };
+
+  // Placeholder for deleting users
+  const handleDeleteUser = async (uid: string) => {
+      console.log(`Deleting User with UID: ${uid}`);
+      toast({ title: "Action Not Implemented", description: "User deletion functionality is not yet available." });
+      // Implement actual user deletion logic here (Firestore + Auth)
   };
 
   const handleSelectAll = (checked: boolean | 'indeterminate') => {
@@ -170,30 +201,75 @@ export default function ManageMCQsPage() {
     mcq.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const filteredUsers = users.filter(user =>
+     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+     user.subscription?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
    const isAllSelected = filteredMcqs.length > 0 && selectedMcqs.size === filteredMcqs.length;
    const isIndeterminate = selectedMcqs.size > 0 && selectedMcqs.size < filteredMcqs.length;
 
+   const getSubscriptionBadgeVariant = (plan?: string) => {
+        switch (plan) {
+            case 'premium': return 'default';
+            case 'basic': return 'secondary';
+            case 'free': return 'outline';
+            default: return 'outline';
+        }
+    };
+
   return (
     <div className="flex flex-col min-h-screen">
-      <AdminHeader title="Manage MCQs" />
+      <AdminHeader title="Manage Content & Users" />
        <main className="flex-1 p-6 md:p-10 bg-muted/30">
+         {/* Tabs */}
+         <div className="mb-6 border-b">
+             <nav className="-mb-px flex space-x-6" aria-label="Tabs">
+                 <button
+                     onClick={() => setActiveTab('mcqs')}
+                     className={cn(
+                         'whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm',
+                         activeTab === 'mcqs'
+                             ? 'border-primary text-primary'
+                             : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+                     )}
+                 >
+                     Manage MCQs
+                 </button>
+                 <button
+                     onClick={() => setActiveTab('users')}
+                     className={cn(
+                         'whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm',
+                         activeTab === 'users'
+                             ? 'border-primary text-primary'
+                             : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+                     )}
+                 >
+                     Manage Users
+                 </button>
+             </nav>
+         </div>
+
+
+         {/* Search and Actions */}
          <div className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
              <Input
                 type="search"
-                placeholder="Search questions or categories..."
+                placeholder={activeTab === 'mcqs' ? "Search questions..." : "Search users..."}
                 className="pl-8 w-full"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
            <div className="flex gap-2 flex-wrap justify-end w-full sm:w-auto">
-              {selectedMcqs.size > 0 && (
+              {activeTab === 'mcqs' && selectedMcqs.size > 0 && (
                <AlertDialog>
                  <AlertDialogTrigger asChild>
                      <Button variant="destructive" size="sm">
-                        <Trash2 className="mr-2 h-4 w-4" /> Delete ({selectedMcqs.size})
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete Selected ({selectedMcqs.size})
                     </Button>
                  </AlertDialogTrigger>
                  <AlertDialogContent>
@@ -205,7 +281,7 @@ export default function ManageMCQsPage() {
                    </AlertDialogHeader>
                    <AlertDialogFooter>
                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                     <AlertDialogAction onClick={handleDeleteSelected} className="bg-destructive hover:bg-destructive/90">
+                     <AlertDialogAction onClick={handleDeleteSelectedMCQs} className="bg-destructive hover:bg-destructive/90">
                        Delete Selected
                      </AlertDialogAction>
                    </AlertDialogFooter>
@@ -215,105 +291,182 @@ export default function ManageMCQsPage() {
               {/* <Button variant="outline" size="sm">
                  <Filter className="mr-2 h-4 w-4" /> Filter
                </Button> */}
-             <Link href="/admin/mcqs/add" passHref>
-               <Button size="sm">
-                 <PlusCircle className="mr-2 h-4 w-4" /> Add New MCQ
-               </Button>
-             </Link>
+             {activeTab === 'mcqs' && (
+                 <Link href="/admin/mcqs/add" passHref>
+                   <Button size="sm">
+                     <PlusCircle className="mr-2 h-4 w-4" /> Add New MCQ
+                   </Button>
+                 </Link>
+             )}
+             {/* Add button for adding users later if needed */}
             </div>
          </div>
 
-         {isLoading ? (
-            <MCQTableSkeleton />
-         ) : error ? (
-             <div className="text-center py-10 text-destructive">{error}</div>
-         ) : (
-             <Card className="overflow-hidden border shadow-sm">
-                 <Table>
-                 <TableHeader>
-                    <TableRow>
-                     <TableHead className="w-[50px]">
-                        <Checkbox
-                            checked={isAllSelected || isIndeterminate}
-                            onCheckedChange={handleSelectAll}
-                            aria-label="Select all rows"
-                            className={isIndeterminate ? 'bg-primary/50 border-primary' : ''}
-                        />
-                     </TableHead>
-                    <TableHead className="min-w-[250px]">Question (English)</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Correct Answer (EN)</TableHead>
-                    <TableHead className="text-right w-[150px]">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {filteredMcqs.length > 0 ? (
-                    filteredMcqs.map((mcq) => (
-                        <TableRow key={mcq.id} data-state={selectedMcqs.has(mcq.id) ? 'selected' : ''}>
-                         <TableCell>
-                             <Checkbox
-                                checked={selectedMcqs.has(mcq.id)}
-                                onCheckedChange={(checked) => handleRowSelect(mcq.id, !!checked)}
-                                aria-label={`Select row ${mcq.id}`}
-                              />
-                         </TableCell>
-                        <TableCell className="font-medium">
-                             {/* Truncate long questions */}
-                             <span title={mcq.question.en} className="line-clamp-2">
-                               {mcq.question.en}
-                             </span>
-                         </TableCell>
-                        <TableCell>
-                             <Badge variant="secondary">{mcq.category}</Badge>
-                         </TableCell>
-                        <TableCell>{mcq.correctAnswer.en}</TableCell>
-                        <TableCell className="text-right">
-                            <div className="flex gap-1 justify-end">
-                                <Link href={`/admin/mcqs/edit/${mcq.id}`} passHref>
-                                 <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Edit MCQ">
-                                    <Edit className="h-4 w-4" />
-                                </Button>
-                                </Link>
-                                {/* <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Translate MCQ">
-                                    <Languages className="h-4 w-4" />
-                                </Button> */}
-                                <AlertDialog>
-                                 <AlertDialogTrigger asChild>
-                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" aria-label="Delete MCQ">
-                                         <Trash2 className="h-4 w-4" />
-                                     </Button>
-                                 </AlertDialogTrigger>
-                                 <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                    <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        Are you sure you want to delete this MCQ? This action cannot be undone.
-                                        <br /> <strong className='mt-2 block'>Question: "{mcq.question.en.substring(0, 50)}..."</strong>
-                                    </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleDelete(mcq.id)} className="bg-destructive hover:bg-destructive/90">
-                                        Delete
-                                    </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                                </AlertDialog>
-                            </div>
-                        </TableCell>
+         {/* Conditional Table Rendering */}
+         {activeTab === 'mcqs' && (
+             isLoadingMCQs ? (
+                <MCQTableSkeleton />
+             ) : error ? (
+                 <div className="text-center py-10 text-destructive">{error}</div>
+             ) : (
+                 <Card className="overflow-hidden border shadow-sm">
+                     <Table>
+                     <TableHeader>
+                        <TableRow>
+                         <TableHead className="w-[50px]">
+                            <Checkbox
+                                checked={isAllSelected || isIndeterminate}
+                                onCheckedChange={handleSelectAll}
+                                aria-label="Select all rows"
+                                className={isIndeterminate ? 'bg-primary/50 border-primary' : ''}
+                            />
+                         </TableHead>
+                        <TableHead className="min-w-[250px]">Question (English)</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Correct Answer (EN)</TableHead>
+                        <TableHead className="text-right w-[150px]">Actions</TableHead>
                         </TableRow>
-                    ))
-                    ) : (
-                     <TableRow>
-                       <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                         No MCQs found matching your search criteria.
-                       </TableCell>
-                     </TableRow>
-                    )}
-                </TableBody>
-                </Table>
-             </Card>
+                    </TableHeader>
+                    <TableBody>
+                        {filteredMcqs.length > 0 ? (
+                        filteredMcqs.map((mcq) => (
+                            <TableRow key={mcq.id} data-state={selectedMcqs.has(mcq.id) ? 'selected' : ''}>
+                             <TableCell>
+                                 <Checkbox
+                                    checked={selectedMcqs.has(mcq.id)}
+                                    onCheckedChange={(checked) => handleRowSelect(mcq.id, !!checked)}
+                                    aria-label={`Select row ${mcq.id}`}
+                                  />
+                             </TableCell>
+                            <TableCell className="font-medium">
+                                 <span title={mcq.question.en} className="line-clamp-2">
+                                   {mcq.question.en}
+                                 </span>
+                             </TableCell>
+                            <TableCell>
+                                 <Badge variant="secondary">{mcq.category}</Badge>
+                             </TableCell>
+                            <TableCell>{mcq.correctAnswer.en}</TableCell>
+                            <TableCell className="text-right">
+                                <div className="flex gap-1 justify-end">
+                                    <Link href={`/admin/mcqs/edit/${mcq.id}`} passHref>
+                                     <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Edit MCQ">
+                                        <Edit className="h-4 w-4" />
+                                    </Button>
+                                    </Link>
+                                    <AlertDialog>
+                                     <AlertDialogTrigger asChild>
+                                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" aria-label="Delete MCQ">
+                                             <Trash2 className="h-4 w-4" />
+                                         </Button>
+                                     </AlertDialogTrigger>
+                                     <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                        <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Are you sure you want to delete this MCQ? This action cannot be undone.
+                                            <br /> <strong className='mt-2 block'>Question: "{mcq.question.en.substring(0, 50)}..."</strong>
+                                        </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteMCQ(mcq.id)} className="bg-destructive hover:bg-destructive/90">
+                                            Delete
+                                        </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                    </AlertDialog>
+                                </div>
+                            </TableCell>
+                            </TableRow>
+                        ))
+                        ) : (
+                         <TableRow>
+                           <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                             No MCQs found matching your search criteria.
+                           </TableCell>
+                         </TableRow>
+                        )}
+                    </TableBody>
+                    </Table>
+                 </Card>
+             )
          )}
+
+         {activeTab === 'users' && (
+             isLoadingUsers ? (
+                 <UserTableSkeleton />
+             ) : error ? (
+                 <div className="text-center py-10 text-destructive">{error}</div> // Reuse error display
+             ) : (
+                <Card className="overflow-hidden border shadow-sm">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Name</TableHead>
+                                <TableHead>Email</TableHead>
+                                <TableHead>Subscription</TableHead>
+                                <TableHead>Joined Date</TableHead>
+                                <TableHead className="text-right w-[100px]">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredUsers.length > 0 ? (
+                                filteredUsers.map((user) => (
+                                    <TableRow key={user.uid}>
+                                        <TableCell className="font-medium">{user.name}</TableCell>
+                                        <TableCell>{user.email}</TableCell>
+                                        <TableCell>
+                                             <Badge variant={getSubscriptionBadgeVariant(user.subscription)} className="capitalize">
+                                                {user.subscription === 'premium' && <Star className="mr-1 h-3 w-3 fill-current" />}
+                                                {user.subscription || 'Free'}
+                                             </Badge>
+                                        </TableCell>
+                                        <TableCell>{user.createdAt ? new Date(user.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex gap-1 justify-end">
+                                                 {/* Add view/edit user actions later */}
+                                                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="View User" disabled>
+                                                     <Edit className="h-4 w-4" />
+                                                 </Button>
+                                                 <AlertDialog>
+                                                     <AlertDialogTrigger asChild>
+                                                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" aria-label="Delete User">
+                                                             <Trash2 className="h-4 w-4" />
+                                                         </Button>
+                                                     </AlertDialogTrigger>
+                                                     <AlertDialogContent>
+                                                         <AlertDialogHeader>
+                                                             <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
+                                                             <AlertDialogDescription>
+                                                                 Are you sure you want to delete user "{user.name}" ({user.email})? This action cannot be undone.
+                                                             </AlertDialogDescription>
+                                                         </AlertDialogHeader>
+                                                         <AlertDialogFooter>
+                                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                             <AlertDialogAction onClick={() => handleDeleteUser(user.uid)} className="bg-destructive hover:bg-destructive/90">
+                                                                 Delete User
+                                                             </AlertDialogAction>
+                                                         </AlertDialogFooter>
+                                                     </AlertDialogContent>
+                                                 </AlertDialog>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                                        No users found matching your search criteria.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </Card>
+             )
+         )}
+
 
          {/* Add Pagination component here later */}
        </main>
@@ -350,6 +503,41 @@ function MCQTableSkeleton() {
                  </TableCell>
                 </TableRow>
             ))}
+            </TableBody>
+        </Table>
+        </Card>
+    );
+}
+
+
+function UserTableSkeleton() {
+    return (
+        <Card className="overflow-hidden border shadow-sm">
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead><Skeleton className="h-4 w-24" /></TableHead>
+                    <TableHead><Skeleton className="h-4 w-40" /></TableHead>
+                    <TableHead><Skeleton className="h-4 w-20" /></TableHead>
+                    <TableHead><Skeleton className="h-4 w-24" /></TableHead>
+                    <TableHead className="text-right w-[100px]"><Skeleton className="h-4 w-16 ml-auto" /></TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {[...Array(5)].map((_, i) => (
+                    <TableRow key={i}>
+                        <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                        <TableCell><Skeleton className="h-6 w-16 rounded-full" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                        <TableCell className="text-right">
+                            <div className="flex gap-1 justify-end">
+                                <Skeleton className="h-8 w-8 rounded-md" />
+                                <Skeleton className="h-8 w-8 rounded-md" />
+                            </div>
+                        </TableCell>
+                    </TableRow>
+                ))}
             </TableBody>
         </Table>
         </Card>

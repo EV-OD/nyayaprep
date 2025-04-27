@@ -14,7 +14,7 @@ import {
   limit,
   serverTimestamp,
 } from 'firebase/firestore';
-import type { UserProfile, QuizResult } from '@/types/user';
+import type { UserProfile, QuizResult, SubscriptionPlan } from '@/types/user';
 import type { User } from 'firebase/auth';
 
 const usersCollection = collection(db, 'users');
@@ -23,12 +23,19 @@ const quizResultsCollection = collection(db, 'quizResults');
 /**
  * Creates or updates a user profile document in Firestore.
  * @param user Firebase User object.
- * @param additionalData Additional data like name and phone number.
+ * @param additionalData Additional data like name, phone, subscription, and profile picture URL.
  */
 export const createUserProfileDocument = async (
   user: User,
-  additionalData: { name: string; phone: string }
+  additionalData: {
+      name: string;
+      phone: string;
+      subscription: SubscriptionPlan; // Now required
+      profilePicture?: string | null; // Optional profile picture URL
+  }
 ): Promise<void> => {
+  if (!user) throw new Error("User object is required.");
+
   const userRef = doc(usersCollection, user.uid);
   const userProfile: UserProfile = {
     uid: user.uid,
@@ -36,17 +43,21 @@ export const createUserProfileDocument = async (
     name: additionalData.name,
     phone: additionalData.phone,
     role: 'user', // Default role for new registrations
+    subscription: additionalData.subscription, // Save subscription plan
+    profilePicture: additionalData.profilePicture || null, // Save picture URL or null
     createdAt: Timestamp.now(), // Use Firestore Timestamp
   };
 
   try {
-    await setDoc(userRef, userProfile, { merge: true }); // Use merge to avoid overwriting existing data if any
+    // Use setDoc with merge: true to create or update, preventing overwrite of existing fields unless specified
+    await setDoc(userRef, userProfile, { merge: true });
     console.log('User profile created/updated successfully for UID:', user.uid);
   } catch (error) {
     console.error('Error creating/updating user profile document:', error);
     throw error; // Re-throw the error to be handled by the caller
   }
 };
+
 
 /**
  * Fetches a user profile document from Firestore.
@@ -59,13 +70,18 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
   try {
     const docSnap = await getDoc(userRef);
     if (docSnap.exists()) {
-      // Ensure createdAt is converted if necessary (it should be a Timestamp from Firestore)
       const data = docSnap.data();
-       // Add type assertion for safety
+       // Add type assertion for safety, ensuring all expected fields exist or have defaults
       const profile: UserProfile = {
-          ...data,
-          createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now() // Handle potential mismatch if needed
-      } as UserProfile;
+          uid: data.uid,
+          email: data.email || '',
+          name: data.name || 'Unknown User',
+          phone: data.phone || '',
+          role: data.role || 'user',
+          subscription: data.subscription || 'free', // Default to 'free' if not set
+          profilePicture: data.profilePicture || null,
+          createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(), // Handle potential mismatch
+      };
       return profile;
     } else {
       console.log('No such user profile document!');
@@ -138,27 +154,27 @@ export const getUserQuizResults = async (userId: string, count?: number): Promis
           ...data,
           // Add type assertion and potentially a default if needed, though serverTimestamp should ensure it's a Timestamp
           completedAt: data.completedAt instanceof Timestamp ? data.completedAt : Timestamp.now()
-        } as QuizResult;
+        } as QuizResult; // Use clearer type assertion
        results.push(result);
     });
     return results;
   } catch (error) {
-    console.error('Error getting user quiz results: ', error); // Log the general error
+    const firebaseError = error as Error; // Type assertion
+    console.error('Error getting user quiz results: ', firebaseError.message); // Log the specific error message
     // Check for specific index error
-    if ((error as Error).message.includes('requires an index')) {
-        // Log a detailed warning with instructions instead of the previous error message
+    if (firebaseError.message.includes('requires an index')) {
         console.warn(
-          `Firestore Query Requires Index: The query to fetch user quiz results needs a composite index that is missing or building.` +
-          ` Please create it in your Firebase console:\n` +
+          `Firestore Query Requires Index: The query to fetch user quiz results needs a composite index that might be missing or still building.` +
+          ` Please ensure it exists and is active in your Firebase console:\n` +
           `1. Go to Firestore Database -> Indexes.\n` +
-          `2. Click "Add composite index".\n` +
-          `3. Collection ID: 'quizResults'.\n` +
-          `4. Fields to index: 'userId' (Ascending), 'completedAt' (Descending).\n` +
-          `5. Click "Create".\n` +
-          `The dashboard functionality for recent results might be limited until this index is created and active.`
+          `2. Check/Create a composite index for 'quizResults' collection.\n` +
+          `3. Fields: 'userId' (Ascending), 'completedAt' (Descending).\n` +
+          `Dashboard functionality for recent results might be limited until this index is active.`
         );
     }
-    throw error; // Re-throw the error so the calling component knows about the failure
+    // Return empty array or re-throw, depending on how you want to handle errors upstream
+     return []; // Return empty array to prevent crashing the UI
+    // throw error; // Or re-throw the error
   }
 };
 
@@ -183,4 +199,3 @@ export const isCurrentUserAdmin = async (): Promise<boolean> => {
         return false; // Default to false on error
     }
 };
-

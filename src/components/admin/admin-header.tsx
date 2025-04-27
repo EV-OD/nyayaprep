@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { LogOut, User, Settings, LayoutDashboard, ListChecks, PlusCircle } from 'lucide-react';
+import { LogOut, User, Settings, LayoutDashboard, ListChecks, PlusCircle, Users } from 'lucide-react'; // Added Users icon
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +18,8 @@ import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase/config';
 import { signOut, User as FirebaseUser } from 'firebase/auth'; // Import Firebase sign out function
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation'; // Import usePathname
+import { cn } from '@/lib/utils'; // Import cn
 
 interface AdminHeaderProps {
   title: string;
@@ -25,6 +27,7 @@ interface AdminHeaderProps {
 
 export function AdminHeader({ title }: AdminHeaderProps) {
   const router = useRouter();
+  const pathname = usePathname(); // Get current pathname
   const { toast } = useToast();
   const [adminUser, setAdminUser] = useState<FirebaseUser | null>(null);
 
@@ -66,15 +69,38 @@ export function AdminHeader({ title }: AdminHeaderProps) {
         <h1 className="text-lg font-semibold md:text-xl">{title}</h1>
          {/* Navigation links */}
           <nav className="hidden md:flex items-center gap-4 text-sm ml-6">
-           <Link href="/admin/dashboard" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+           <Link
+             href="/admin/dashboard"
+             className={cn(
+                "transition-colors flex items-center gap-1",
+                pathname === '/admin/dashboard' ? 'text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
               <LayoutDashboard size={16} /> Dashboard
            </Link>
-           <Link href="/admin/mcqs" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+           <Link
+             href="/admin/mcqs"
+             className={cn(
+                "transition-colors flex items-center gap-1",
+                 pathname.startsWith('/admin/mcqs') ? 'text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
               <ListChecks size={16} /> Manage MCQs
            </Link>
-            <Link href="/admin/mcqs/add" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+           {/* Placeholder Link - Adjust href when user management page exists */}
+            <Link
+             href="/admin/users" // Adjust this href later
+              className={cn(
+                 "transition-colors flex items-center gap-1",
+                  pathname.startsWith('/admin/users') ? 'text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'
+               )}
+             >
+               <Users size={16} /> Manage Users
+            </Link>
+            {/* Add MCQ link might be better suited elsewhere or within Manage MCQs page */}
+            {/* <Link href="/admin/mcqs/add" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
               <PlusCircle size={16} /> Add MCQ
-           </Link>
+           </Link> */}
          </nav>
       </div>
       <div className="flex items-center gap-4">
