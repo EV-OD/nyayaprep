@@ -21,10 +21,10 @@ import type { SubscriptionPlan } from '@/types/user';
 interface AskTeacherDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (questionText: string) => Promise<void>; // Make submit async
+  onSubmit: (questionText: string) => Promise<void>; // Submit function provided by parent
   limit: number;
   usage: number;
-  planName: SubscriptionPlan; // Add plan name for context
+  planName: SubscriptionPlan;
 }
 
 export function AskTeacherDialog({
@@ -47,15 +47,13 @@ export function AskTeacherDialog({
 
     setIsSubmitting(true);
     try {
-      await onSubmit(questionText);
-      toast({
-        title: 'Question Submitted',
-        description: 'Your question has been sent. Please allow some time for a response.',
-      });
-      setQuestionText(''); // Clear textarea after successful submission
-      // onClose(); // Let the parent component handle closing if needed (already done in dashboard)
+      await onSubmit(questionText); // Call the parent's submit function
+      // Parent component will handle success toast and state updates
+      setQuestionText(''); // Clear textarea after successful submission call
+      // Let parent handle closing
     } catch (error) {
-      console.error('Error submitting question:', error);
+      console.error('Error submitting question via callback:', error);
+      // Parent component might show a toast, or we can show a generic one here
       toast({
         variant: 'destructive',
         title: 'Submission Failed',
@@ -66,13 +64,21 @@ export function AskTeacherDialog({
     }
   };
 
+  // Reset text area when dialog opens/closes
+  React.useEffect(() => {
+      if (!isOpen) {
+          setQuestionText('');
+          setIsSubmitting(false); // Reset submitting state on close
+      }
+  }, [isOpen]);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Ask a Teacher</DialogTitle>
           <DialogDescription>
-            Enter your question about MCQs or quizzes below. You have {remaining} question(s) left today for the {planName} plan. {/* Updated description */}
+            Enter your question about MCQs or quizzes below. You have {remaining} question(s) left today for the {planName} plan.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -81,13 +87,19 @@ export function AskTeacherDialog({
               <Label htmlFor="question">Your Question</Label>
               <Textarea
                 id="question"
-                placeholder="Type your question about MCQs or quizzes here..." // Updated placeholder
+                placeholder="Type your question about MCQs or quizzes here..."
                 value={questionText}
                 onChange={(e) => setQuestionText(e.target.value)}
                 rows={6}
                 required
                 disabled={isSubmitting}
               />
+              {/* Optional File Upload - Skipped for now
+               <div className="mt-2">
+                 <Label htmlFor="file-upload" className="text-xs text-muted-foreground">Attach file (Optional)</Label>
+                 <Input id="file-upload" type="file" className="text-xs h-8 mt-1" disabled={isSubmitting}/>
+               </div>
+              */}
             </div>
           </div>
           <DialogFooter>
@@ -111,5 +123,3 @@ export function AskTeacherDialog({
     </Dialog>
   );
 }
-
-    

@@ -22,12 +22,18 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"; // Import Accordion
 import { auth } from '@/lib/firebase/config';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { getUserProfile, getUserQuizResults, updateAskTeacherUsage } from '@/lib/firebase/firestore'; // Use actual update function
-import type { UserProfile, QuizResult, SubscriptionPlan } from '@/types/user';
-import { formatDistanceToNow, isToday } from 'date-fns'; // Added isToday
-import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video, History, BarChart2, X, ExternalLink, MessageSquareQuote } from 'lucide-react'; // Changed MessageSquareQuestion to MessageSquareQuote
+import { getUserProfile, getUserQuizResults, updateAskTeacherUsage, saveTeacherQuestion, getUserTeacherQuestions } from '@/lib/firebase/firestore'; // Added saveTeacherQuestion, getUserTeacherQuestions
+import type { UserProfile, QuizResult, SubscriptionPlan, TeacherQuestion } from '@/types/user'; // Import TeacherQuestion
+import { formatDistanceToNow, isToday, format } from 'date-fns'; // Added format
+import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video, History, BarChart2, X, ExternalLink, MessageSquareQuote, HelpCircle, Clock, Check } from 'lucide-react'; // Added icons for questions
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { AskTeacherDialog } from '@/components/user/ask-teacher-dialog'; // Import AskTeacherDialog
@@ -86,8 +92,10 @@ export default function UserDashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [results, setResults] = useState<QuizResult[]>([]);
+  const [teacherQuestions, setTeacherQuestions] = useState<TeacherQuestion[]>([]); // State for user's asked questions
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [loadingResults, setLoadingResults] = useState(true);
+  const [loadingTeacherQuestions, setLoadingTeacherQuestions] = useState(true); // Loading state for teacher questions
   const [isAskTeacherDialogOpen, setIsAskTeacherDialogOpen] = useState(false);
   const [canAskTeacher, setCanAskTeacher] = useState(false); // State to control if user can ask based on limit
   const [askTeacherUsage, setAskTeacherUsage] = useState(0); // Current usage count for the day
@@ -99,30 +107,33 @@ export default function UserDashboardPage() {
       if (currentUser) {
         setLoadingProfile(true);
         setLoadingResults(true);
+        setLoadingTeacherQuestions(true); // Start loading teacher questions
         try {
           const userProfile = await getUserProfile(currentUser.uid);
           setProfile(userProfile);
           if (userProfile) {
-            // Fetch results only if profile exists
-            const quizResults = await getUserQuizResults(currentUser.uid, 5);
+            // Fetch results and teacher questions in parallel
+            const [quizResults, fetchedTeacherQuestions] = await Promise.all([
+                getUserQuizResults(currentUser.uid, 5),
+                getUserTeacherQuestions(currentUser.uid) // Fetch user's asked questions
+            ]);
             setResults(quizResults);
+            setTeacherQuestions(fetchedTeacherQuestions); // Set fetched questions
 
             // --- Ask Teacher Usage Check ---
-            // Check if the last ask date is today
             const todayUsage = userProfile.lastAskTeacherDate && isToday(userProfile.lastAskTeacherDate.toDate())
               ? userProfile.askTeacherCount || 0
-              : 0; // If last ask was not today, reset usage count to 0 for today
+              : 0;
 
-            // Get the limit for the current plan
-            const limit = subscriptionDetails[userProfile.subscription]?.askLimit ?? 0; // Use ?? for default
+            const limit = subscriptionDetails[userProfile.subscription]?.askLimit ?? 0;
 
             setAskTeacherUsage(todayUsage);
-            setCanAskTeacher(todayUsage < limit && userProfile.subscription !== 'free' && userProfile.validated); // Also check validation
-            // --- End Check ---
+            setCanAskTeacher(todayUsage < limit && userProfile.subscription !== 'free' && userProfile.validated);
 
           } else {
             setResults([]);
-            setCanAskTeacher(false); // Cannot ask if no profile
+            setTeacherQuestions([]); // Clear if no profile
+            setCanAskTeacher(false);
             console.warn("User profile not found for UID:", currentUser.uid);
           }
         } catch (error) {
@@ -130,13 +141,16 @@ export default function UserDashboardPage() {
         } finally {
           setLoadingProfile(false);
           setLoadingResults(false);
+          setLoadingTeacherQuestions(false); // Finish loading teacher questions
         }
       } else {
         setProfile(null);
         setResults([]);
-        setCanAskTeacher(false); // Cannot ask if logged out
+        setTeacherQuestions([]); // Clear on logout
+        setCanAskTeacher(false);
         setLoadingProfile(false);
         setLoadingResults(false);
+        setLoadingTeacherQuestions(false); // Finish loading
       }
     });
     return () => unsubscribe();
@@ -144,23 +158,32 @@ export default function UserDashboardPage() {
 
   // Function to handle asking a question
   const handleAskQuestionSubmit = async (questionText: string) => {
-      if (!profile || !canAskTeacher) return; // Guard clause
+      if (!profile || !user || !canAskTeacher) return; // Guard clause including user object
 
        const newCount = askTeacherUsage + 1;
        try {
-           // Update Firestore immediately
+           // 1. Save the question to Firestore
+            await saveTeacherQuestion(user.uid, questionText, profile.name, profile.email);
+
+           // 2. Update Firestore usage count
            await updateAskTeacherUsage(profile.uid, newCount);
 
-           // Update local state for immediate UI feedback
+           // 3. Update local state for immediate UI feedback
            setAskTeacherUsage(newCount);
            const limit = subscriptionDetails[profile.subscription]?.askLimit || 0;
            setCanAskTeacher(newCount < limit && profile.validated); // Re-check canAskTeacher state
+
+            // 4. Refetch teacher questions to show the new one (optimistic UI update could be added too)
+            setLoadingTeacherQuestions(true);
+            const updatedQuestions = await getUserTeacherQuestions(user.uid);
+            setTeacherQuestions(updatedQuestions);
+            setLoadingTeacherQuestions(false);
 
            console.log("Question asked. New count:", newCount);
            // Close dialog after successful submission
            setIsAskTeacherDialogOpen(false);
        } catch (error) {
-            console.error("Failed to update Ask Teacher usage:", error);
+            console.error("Failed to submit question or update usage:", error);
             // Optionally show an error toast to the user
             // The UI state won't update if the Firestore update fails
        }
@@ -246,14 +269,27 @@ export default function UserDashboardPage() {
 
      const pdfUrl = "https://ag.gov.np/files/Constitution-of-Nepal_2072_Eng_www.moljpa.gov_.npDate-72_11_16.pdf";
 
+     const getStatusBadge = (status: TeacherQuestion['status']) => {
+         switch (status) {
+             case 'pending':
+                 return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300"><Clock size={12} className="mr-1"/> Pending</Badge>;
+             case 'answered':
+                 return <Badge variant="default" className="bg-green-100 text-green-800 border-green-300"><Check size={12} className="mr-1"/> Answered</Badge>;
+             case 'rejected':
+                 return <Badge variant="destructive"><X size={12} className="mr-1"/> Rejected</Badge>;
+             default:
+                 return <Badge variant="secondary">Unknown</Badge>;
+         }
+     };
+
 
   return (
-    <div className="p-6 md:p-10">
-      <h1 className="text-2xl md:text-3xl font-bold mb-6">My Dashboard</h1>
+    <div className="p-6 md:p-10 space-y-8"> {/* Added space-y */}
+      <h1 className="text-2xl md:text-3xl font-bold">My Dashboard</h1>
 
       {/* Validation Alert */}
       {showValidationAlert && (
-         <Alert variant="destructive" className="mb-6 border-yellow-500 bg-yellow-50 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700 [&>svg]:text-yellow-600 dark:[&>svg]:text-yellow-400">
+         <Alert variant="destructive" className="border-yellow-500 bg-yellow-50 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700 [&>svg]:text-yellow-600 dark:[&>svg]:text-yellow-400">
            <AlertTriangle className="h-4 w-4" />
            <AlertTitle className="font-semibold">Account Pending Validation</AlertTitle>
            <AlertDescription>
@@ -269,7 +305,7 @@ export default function UserDashboardPage() {
       )}
 
        {/* First Row: Welcome, Score, Start Quiz */}
-       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
+       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Welcome Card */}
         <Card className="lg:col-span-1">
           <CardHeader className="pb-2">
@@ -365,7 +401,7 @@ export default function UserDashboardPage() {
 
 
       {/* Second Row: Subscription, Recent Activity */}
-      <div className="grid gap-6 lg:grid-cols-3 mb-8">
+      <div className="grid gap-6 lg:grid-cols-3">
          {/* Subscription Details Card */}
          <Card className="lg:col-span-1">
              <CardHeader>
@@ -475,8 +511,8 @@ export default function UserDashboardPage() {
          </Card>
       </div>
 
-       {/* Third Row: Notes/Resources, Videos & Ask Teacher */}
-       <div className="grid gap-6 md:grid-cols-3">
+       {/* Third Row: Notes/Resources, Videos */}
+       <div className="grid gap-6 md:grid-cols-2">
           {/* Notes & Resources Section */}
           <Card className="relative overflow-hidden flex flex-col">
               <CardHeader>
@@ -546,11 +582,15 @@ export default function UserDashboardPage() {
               </CardContent>
           </Card>
 
+       </div>
+
+       {/* Fourth Row: Ask Teacher & My Questions */}
+       <div className="grid gap-6 lg:grid-cols-2">
             {/* Ask Teacher Section */}
              <Card className="relative overflow-hidden flex flex-col">
               <CardHeader>
-                 <CardTitle className="flex items-center gap-2"><MessageSquareQuote size={20} /> Ask a Teacher</CardTitle> {/* Updated Icon */}
-                 <CardDescription>Get your MCQs and quiz queries answered by experts.</CardDescription> {/* Updated Description */}
+                 <CardTitle className="flex items-center gap-2"><MessageSquareQuote size={20} /> Ask a Teacher</CardTitle>
+                 <CardDescription>Get your MCQs and quiz queries answered by experts.</CardDescription>
               </CardHeader>
               <CardContent className="flex-grow relative flex flex-col items-center justify-center text-center">
                   {askTeacherLocked && (
@@ -565,9 +605,9 @@ export default function UserDashboardPage() {
                  {/* Content visible to Basic/Premium users */}
                  <div className={cn("flex flex-col items-center justify-center text-center", askTeacherLocked ? "opacity-30 pointer-events-none" : "")}>
                      <p className="text-sm text-muted-foreground mb-4">
-                          You have {Math.max(0, askLimit - askTeacherUsage)} question(s) remaining today. {/* Ensure non-negative */}
+                          You have {Math.max(0, askLimit - askTeacherUsage)} question(s) remaining today.
                      </p>
-                     {askLimitReached && profile?.subscription !== 'free' ? ( // Ensure limit reached is only for paid plans
+                     {askLimitReached && profile?.subscription !== 'free' ? (
                          <LimitReachedDialog
                              triggerButton={
                                 <Button size="lg" disabled>
@@ -585,6 +625,59 @@ export default function UserDashboardPage() {
               </CardContent>
            </Card>
 
+           {/* My Questions Section */}
+           <Card className="relative overflow-hidden flex flex-col">
+               <CardHeader>
+                   <CardTitle className="flex items-center gap-2"><HelpCircle size={20} /> My Questions</CardTitle>
+                   <CardDescription>View the status and answers to your submitted questions.</CardDescription>
+               </CardHeader>
+               <CardContent className="flex-grow relative">
+                   {askTeacherLocked && (
+                      <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-10 rounded-b-lg">
+                          <Lock size={40} className="text-primary mb-4" />
+                          <p className="text-center font-semibold mb-4">Available for Basic & Premium plans.</p>
+                           <UpgradeAlertDialog
+                              triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Plan</Button>}
+                          />
+                      </div>
+                   )}
+                   <div className={cn("space-y-3", askTeacherLocked ? "opacity-30 pointer-events-none" : "")}>
+                      {loadingTeacherQuestions ? (
+                          <MyQuestionsSkeleton />
+                      ) : teacherQuestions.length > 0 ? (
+                           <Accordion type="single" collapsible className="w-full">
+                              {teacherQuestions.map((q, index) => (
+                                 <AccordionItem value={`item-${index}`} key={q.id}>
+                                   <AccordionTrigger className="text-sm hover:no-underline">
+                                       <div className="flex justify-between items-center w-full pr-2">
+                                          <span className="truncate flex-1 mr-2">{q.questionText}</span>
+                                          {getStatusBadge(q.status)}
+                                       </div>
+                                   </AccordionTrigger>
+                                   <AccordionContent className="text-sm text-muted-foreground px-2 pt-2 pb-4 space-y-2">
+                                       <p><strong>Asked:</strong> {q.askedAt ? format(q.askedAt.toDate(), 'PPP p') : 'N/A'}</p>
+                                       {q.status === 'answered' && q.answerText ? (
+                                           <>
+                                           <p><strong>Answered:</strong> {q.answeredAt ? format(q.answeredAt.toDate(), 'PPP p') : 'N/A'}</p>
+                                           <p className="whitespace-pre-wrap"><strong>Answer:</strong> {q.answerText}</p>
+                                           </>
+                                       ) : q.status === 'pending' ? (
+                                           <p>Awaiting answer from the teacher.</p>
+                                       ): q.status === 'rejected' ? (
+                                            <p>This question was rejected.</p>
+                                       ): (
+                                            <p>No answer yet.</p>
+                                       )}
+                                   </AccordionContent>
+                                 </AccordionItem>
+                              ))}
+                            </Accordion>
+                      ) : (
+                          <p className="text-center text-muted-foreground py-6">You haven't asked any questions yet.</p>
+                      )}
+                   </div>
+               </CardContent>
+           </Card>
        </div>
 
         {/* Ask Teacher Dialog */}
@@ -638,10 +731,15 @@ function SubscriptionSkeleton() {
     );
 }
 
-
-
-    
-
-    
-
-    
+function MyQuestionsSkeleton() {
+    return (
+        <div className="space-y-3">
+            {[...Array(3)].map((_, i) => (
+                <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
+                    <Skeleton className="h-4 w-3/5" />
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                </div>
+            ))}
+        </div>
+    );
+}
