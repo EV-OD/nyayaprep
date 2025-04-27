@@ -28,9 +28,12 @@ export interface BadgeProps
     VariantProps<typeof badgeVariants> {}
 
 function Badge({ className, variant, ...props }: BadgeProps) {
+  // Added override for destructive variant text/bg color for better contrast if needed
+  const destructiveOverride = variant === 'destructive' ? 'bg-red-500 text-white' : '';
   return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
+    <div className={cn(badgeVariants({ variant }), destructiveOverride, className)} {...props} />
   )
 }
 
 export { Badge, badgeVariants }
+
