@@ -14,9 +14,9 @@ import { PublicNavbar } from '@/components/layout/public-navbar'; // Import Publ
 const ESEWA_QR_CODE_URL = '/images/esewa-qr-placeholder.png'; // Placeholder path
 const WHATSAPP_NUMBER = '+97798XXXXXXXX'; // Placeholder number
 
-// Plan details (could be fetched or passed)
+// Plan details (updated prices)
 const planDetails = {
-    basic: { name: 'Basic', price: 'NRS 20 / week' },
+    basic: { name: 'Basic', price: 'NRS 50 / week' },
     premium: { name: 'Premium', price: 'NRS 100 / week' },
 };
 
@@ -31,7 +31,10 @@ function PaymentComponent() {
     // Redirect if plan is missing, invalid, or 'free'
     React.useEffect(() => {
         if (!plan || !(plan in planDetails)) {
-            router.replace('/pricing');
+            // Allow 'free' plan through register page, but redirect if payment page accessed directly
+            if (plan !== 'free') {
+                router.replace('/pricing');
+            }
         }
     }, [plan, router]);
 
@@ -42,6 +45,26 @@ function PaymentComponent() {
         // but here we just redirect to login as validation is manual.
         router.push('/login');
     };
+
+    // Handle the case where the plan is free - shouldn't reach here via normal flow
+    if (plan === 'free') {
+         // Optionally redirect or show a message
+         // router.replace('/dashboard'); // Maybe redirect to dashboard?
+         return (
+             <main className="flex flex-1 items-center justify-center bg-gradient-to-br from-background to-muted/50 p-4 py-10">
+                <Card className="w-full max-w-md shadow-xl border">
+                    <CardHeader className="text-center">
+                        <CardTitle className="text-2xl font-bold text-primary">Registration Complete</CardTitle>
+                         <CardDescription>Your Free plan is active. No payment needed.</CardDescription>
+                    </CardHeader>
+                    <CardFooter>
+                        <Button className="w-full" onClick={() => router.push('/login')}>Go to Login</Button>
+                    </CardFooter>
+                </Card>
+             </main>
+         );
+     }
+
 
     const currentPlan = plan ? planDetails[plan] : null;
 

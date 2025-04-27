@@ -6,58 +6,65 @@ import { QuizClient } from '@/components/quiz/quiz-client';
 import type { Question } from '@/types/quiz';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PublicNavbar } from '@/components/layout/public-navbar'; // Import PublicNavbar
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // For error display
+import { AlertTriangle } from 'lucide-react'; // Icon for error
 
-// Dummy data for initial structure - replace with actual data fetching
+// Dummy data for initial structure - REPLACE with actual data fetching
+// Make sure dummy data has at least 10 questions if possible for testing
 const dummyQuestions: Question[] = [
+  // Add 10 questions here... (example below)
   {
-    id: '1',
-    category: 'Constitutional Law',
-    question: {
-      en: 'Which article of the Constitution of Nepal guarantees the right to freedom?',
-      ne: 'नेपालको संविधानको कुन धाराले स्वतन्त्रताको हकको प्रत्याभूति गरेको छ?',
-    },
-    options: {
-      en: ['Article 16', 'Article 17', 'Article 18', 'Article 19'],
-      ne: ['धारा १६', 'धारा १७', 'धारा १८', 'धारा १९'],
-    },
-    correctAnswer: {
-      en: 'Article 17',
-      ne: 'धारा १७',
-    },
+    id: '1', category: 'Constitutional Law', question: { en: 'Question 1 EN?', ne: 'Question 1 NE?' },
+    options: { en: ['A', 'B', 'C', 'D'], ne: ['क', 'ख', 'ग', 'घ'] }, correctAnswer: { en: 'A', ne: 'क' }
   },
   {
-    id: '2',
-    category: 'Legal Theory',
-    question: {
-      en: 'Who is considered the father of the theory of Natural Law?',
-      ne: 'प्राकृतिक कानूनको सिद्धान्तका पिता कसलाई मानिन्छ?',
-    },
-    options: {
-      en: ['John Austin', 'Thomas Aquinas', 'Jeremy Bentham', 'H.L.A. Hart'],
-      ne: ['जोन अस्टिन', 'थोमस एक्विनास', 'जेरेमी बेन्थम', 'एच.एल.ए. हार्ट'],
-    },
-    correctAnswer: {
-      en: 'Thomas Aquinas',
-      ne: 'थोमस एक्विनास',
-    },
+    id: '2', category: 'Criminal Law', question: { en: 'Question 2 EN?', ne: 'Question 2 NE?' },
+    options: { en: ['A', 'B', 'C', 'D'], ne: ['क', 'ख', 'ग', 'घ'] }, correctAnswer: { en: 'B', ne: 'ख' }
   },
    {
-    id: '3',
-    category: 'Criminal Law',
-    question: {
-      en: 'What does "mens rea" refer to in criminal law?',
-      ne: 'फौजदारी कानूनमा "मेन्स रिया" भन्नाले के बुझिन्छ?',
-    },
-    options: {
-      en: ['The guilty act', 'The guilty mind', 'The burden of proof', 'The standard of proof'],
-      ne: ['दोषपूर्ण कार्य', 'दोषपूर्ण मनसाय', 'प्रमाणको भार', 'प्रमाणको स्तर'],
-    },
-    correctAnswer: {
-      en: 'The guilty mind',
-      ne: 'दोषपूर्ण मनसाय',
-    },
+    id: '3', category: 'Legal Theory', question: { en: 'Question 3 EN?', ne: 'Question 3 NE?' },
+    options: { en: ['A', 'B', 'C', 'D'], ne: ['क', 'ख', 'ग', 'घ'] }, correctAnswer: { en: 'C', ne: 'ग' }
   },
+    {
+    id: '4', category: 'Procedural Law', question: { en: 'Question 4 EN?', ne: 'Question 4 NE?' },
+    options: { en: ['A', 'B', 'C', 'D'], ne: ['क', 'ख', 'ग', 'घ'] }, correctAnswer: { en: 'D', ne: 'घ' }
+  },
+      {
+    id: '5', category: 'Constitutional Law', question: { en: 'Question 5 EN?', ne: 'Question 5 NE?' },
+    options: { en: ['A', 'B', 'C', 'D'], ne: ['क', 'ख', 'ग', 'घ'] }, correctAnswer: { en: 'A', ne: 'क' }
+  },
+      {
+    id: '6', category: 'Criminal Law', question: { en: 'Question 6 EN?', ne: 'Question 6 NE?' },
+    options: { en: ['A', 'B', 'C', 'D'], ne: ['क', 'ख', 'ग', 'घ'] }, correctAnswer: { en: 'B', ne: 'ख' }
+  },
+     {
+    id: '7', category: 'Legal Theory', question: { en: 'Question 7 EN?', ne: 'Question 7 NE?' },
+    options: { en: ['A', 'B', 'C', 'D'], ne: ['क', 'ख', 'ग', 'घ'] }, correctAnswer: { en: 'C', ne: 'ग' }
+  },
+    {
+    id: '8', category: 'Procedural Law', question: { en: 'Question 8 EN?', ne: 'Question 8 NE?' },
+    options: { en: ['A', 'B', 'C', 'D'], ne: ['क', 'ख', 'ग', 'घ'] }, correctAnswer: { en: 'D', ne: 'घ' }
+  },
+      {
+    id: '9', category: 'Constitutional Law', question: { en: 'Question 9 EN?', ne: 'Question 9 NE?' },
+    options: { en: ['A', 'B', 'C', 'D'], ne: ['क', 'ख', 'ग', 'घ'] }, correctAnswer: { en: 'A', ne: 'क' }
+  },
+    {
+    id: '10', category: 'Criminal Law', question: { en: 'Question 10 EN?', ne: 'Question 10 NE?' },
+    options: { en: ['A', 'B', 'C', 'D'], ne: ['क', 'ख', 'ग', 'घ'] }, correctAnswer: { en: 'B', ne: 'ख' }
+  },
+  // Add more questions if your total pool is larger than 10
 ];
+
+// Function to shuffle an array (Fisher-Yates algorithm)
+const shuffleArray = (array: Question[]) => {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]]; // Swap elements
+  }
+  return array;
+};
+
 
 export default function QuizPage() {
   const [questions, setQuestions] = React.useState<Question[]>([]);
@@ -70,10 +77,30 @@ export default function QuizPage() {
       setLoading(true);
       setError(null);
       try {
-        // Replace with actual API call
+        // Replace with actual API call to fetch a pool of questions
         await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate network delay
-        // Assume API returns questions in the format of `dummyQuestions`
-        setQuestions(dummyQuestions);
+
+        // --- LOGIC TO GET EXACTLY 10 QUESTIONS ---
+        // 1. Fetch a larger pool (e.g., all questions or questions from selected categories)
+        const fetchedPool = dummyQuestions; // Replace with actual fetched data
+
+        if (fetchedPool.length < 10) {
+            console.warn("Not enough questions in the pool to form a 10-question quiz.");
+            // Handle this case: maybe show an error or use fewer questions?
+            setQuestions(fetchedPool); // Use whatever is available for now
+            if (fetchedPool.length === 0) {
+                 setError("No questions available to start a quiz.");
+            }
+        } else {
+            // 2. Shuffle the pool
+            const shuffledPool = shuffleArray([...fetchedPool]); // Create a copy before shuffling
+
+            // 3. Take the first 10 questions
+            const selectedQuestions = shuffledPool.slice(0, 10);
+            setQuestions(selectedQuestions);
+        }
+        // --- END OF 10 QUESTIONS LOGIC ---
+
       } catch (err) {
          console.error("Failed to fetch questions:", err);
          setError("Failed to load questions. Please try again later.");
@@ -93,18 +120,29 @@ export default function QuizPage() {
       if (error) {
         return (
           <div className="flex flex-1 items-center justify-center p-4 text-center">
-            <p className="text-destructive text-lg">{error}</p>
+             <Alert variant="destructive" className="max-w-lg">
+               <AlertTriangle className="h-4 w-4" />
+               <AlertTitle>Error Loading Quiz</AlertTitle>
+               <AlertDescription>{error}</AlertDescription>
+             </Alert>
           </div>
         );
       }
 
-      if (questions.length === 0) {
+      // Check if questions array is empty *after* loading and potential error setting
+      if (questions.length === 0 && !error) {
          return (
            <div className="flex flex-1 items-center justify-center p-4 text-center">
-             <p className="text-muted-foreground text-lg">No questions available at the moment.</p>
+              <Alert className="max-w-lg">
+               <AlertTriangle className="h-4 w-4" />
+               <AlertTitle>No Questions Available</AlertTitle>
+               <AlertDescription>We couldn't find any questions for your quiz right now. Please try again later.</AlertDescription>
+             </Alert>
            </div>
          );
        }
+
+      // Only render QuizClient if questions are loaded successfully
       return <QuizClient questions={questions} />;
   }
 
@@ -114,10 +152,7 @@ export default function QuizPage() {
           <main className="flex flex-1">
              {renderContent()}
           </main>
-           {/* Optionally add a footer if needed for public pages */}
-           {/* <footer className="py-4 text-center text-muted-foreground text-sm bg-background border-t">
-               NyayaPrep &copy; {new Date().getFullYear()}
-           </footer> */}
+           {/* Footer can be added if needed */}
       </div>
   );
 }
