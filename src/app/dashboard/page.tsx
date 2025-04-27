@@ -215,6 +215,12 @@ export default function UserDashboardPage() {
      const askLimit = profile ? currentPlanDetails.askLimit : 0;
      const askLimitReached = askTeacherUsage >= askLimit;
 
+    const handleUpgradeClick = () => {
+        // Directly go to pricing page. Pricing page handles logic based on login status.
+        router.push('/pricing');
+    };
+
+
      const UpgradeAlertDialog = ({ triggerButton }: { triggerButton: React.ReactNode }) => (
         <AlertDialog>
             <AlertDialogTrigger asChild>{triggerButton}</AlertDialogTrigger>
@@ -229,10 +235,8 @@ export default function UserDashboardPage() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction asChild>
-                        <Link href="/pricing">
-                            <Zap className="mr-2 h-4 w-4" /> Upgrade to Premium
-                        </Link>
+                    <AlertDialogAction onClick={handleUpgradeClick} asChild={false}>
+                        <Zap className="mr-2 h-4 w-4" /> Upgrade to Premium
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
@@ -256,10 +260,8 @@ export default function UserDashboardPage() {
                 <AlertDialogFooter>
                     <AlertDialogCancel>Ask Tomorrow</AlertDialogCancel>
                     {profile?.subscription !== 'premium' && (
-                        <AlertDialogAction asChild>
-                            <Link href="/pricing">
-                                <Zap className="mr-2 h-4 w-4" /> Upgrade Plan
-                            </Link>
+                        <AlertDialogAction onClick={handleUpgradeClick} asChild={false}>
+                            <Zap className="mr-2 h-4 w-4" /> Upgrade Plan
                         </AlertDialogAction>
                     )}
                 </AlertDialogFooter>
@@ -445,12 +447,15 @@ export default function UserDashboardPage() {
                           </ul>
                       </div>
                        {profile?.subscription !== 'premium' && (
-                         <Link href="/pricing" passHref>
-                             <Button variant="outline" size="sm" className="w-full">
-                                 Upgrade Plan
-                                 <Zap className="ml-1.5 h-4 w-4" />
-                             </Button>
-                          </Link>
+                         <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            onClick={handleUpgradeClick} // Use handler function
+                         >
+                             Upgrade Plan
+                             <Zap className="ml-1.5 h-4 w-4" />
+                         </Button>
                        )}
                     </>
                  )}

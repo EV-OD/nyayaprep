@@ -2,8 +2,8 @@
 'use client';
 
 import * as React from 'react';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react'; // Import Suspense
+import { useRouter, useSearchParams } from 'next/navigation'; // Import useSearchParams
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -27,10 +27,12 @@ const formSchema = z.object({
 
 type LoginFormValues = z.infer<typeof formSchema>;
 
-export default function LoginPage() {
+// Component containing the form logic
+function LoginFormComponent() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams(); // Get search params
   const { toast } = useToast();
 
   const form = useForm<LoginFormValues>({
@@ -44,6 +46,7 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
     setError(null);
+    const redirectUrl = searchParams.get('redirect'); // Get redirect URL from params
 
     try {
       // Sign in using Firebase Authentication
@@ -58,24 +61,27 @@ export default function LoginPage() {
         description: `Welcome back${userProfile?.name ? `, ${userProfile.name}` : ''}! Redirecting...`,
       });
 
-      // Redirect based on role
-      if (userProfile?.role === 'admin') {
-        router.push('/admin/dashboard'); // Redirect admins to admin dashboard
+      // Redirect logic
+      if (redirectUrl) {
+        // If a redirect URL is provided, go there
+        router.push(redirectUrl);
+      } else if (userProfile?.role === 'admin') {
+        // Otherwise, redirect admins to admin dashboard
+        router.push('/admin/dashboard');
       } else {
-        router.push('/dashboard'); // Redirect regular users to user dashboard
+        // Redirect regular users to user dashboard
+        router.push('/dashboard');
       }
 
     } catch (err: unknown) {
       const authError = err as AuthError;
-      // Log the detailed error for debugging purposes
       console.error('Firebase Login Error:', authError.code, authError.message);
 
       let errorMessage = 'An unexpected error occurred. Please try again.';
-      // Handle specific Firebase authentication errors
       switch (authError.code) {
         case 'auth/user-not-found':
         case 'auth/wrong-password':
-        case 'auth/invalid-credential': // Covers incorrect email/password, disabled accounts etc.
+        case 'auth/invalid-credential':
           errorMessage = 'Invalid email or password. Please check your credentials.';
           break;
         case 'auth/invalid-email':
@@ -87,15 +93,11 @@ export default function LoginPage() {
         case 'auth/too-many-requests':
           errorMessage = 'Access temporarily disabled due to too many failed login attempts. Please reset your password or try again later.';
           break;
-        // Add other Firebase Auth error codes as needed
         default:
-           // Keep the generic error for unhandled cases
            console.warn(`Unhandled Firebase Auth Error Code: ${authError.code}`);
            break;
       }
-      // Update the UI state to show the error message below the form
       setError(errorMessage);
-      // Show a user-friendly toast notification
       toast({
         variant: 'destructive',
         title: 'Login Failed',
@@ -145,7 +147,6 @@ export default function LoginPage() {
                       </FormItem>
                     )}
                   />
-                  {/* Display the error message */}
                   {error && (
                     <p className="text-sm font-medium text-destructive text-center pt-2">{error}</p>
                   )}
@@ -177,4 +178,18 @@ export default function LoginPage() {
         </footer>
     </div>
   );
+}
+
+
+// Wrap the component that uses useSearchParams with Suspense
+export default function LoginPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex flex-1 items-center justify-center min-h-screen">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        }>
+            <LoginFormComponent />
+        </Suspense>
+    );
 }
