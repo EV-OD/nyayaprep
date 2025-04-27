@@ -24,18 +24,19 @@ import {
 } from "@/components/ui/alert-dialog";
 import { auth } from '@/lib/firebase/config';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { getUserProfile, getUserQuizResults } from '@/lib/firebase/firestore';
+import { getUserProfile, getUserQuizResults } from '@/lib/firebase/firestore'; // Removed updateAskTeacherUsage - will be handled conceptually
 import type { UserProfile, QuizResult, SubscriptionPlan } from '@/types/user';
-import { formatDistanceToNow } from 'date-fns';
-import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video, History, BarChart2, X, ExternalLink } from 'lucide-react'; // Added ExternalLink
+import { formatDistanceToNow, isToday } from 'date-fns'; // Added isToday
+import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video, History, BarChart2, X, ExternalLink, MessageSquareQuestion } from 'lucide-react'; // Added MessageSquareQuestion
 import { cn } from '@/lib/utils';
-import { useRouter } from 'next/navigation'; // Import useRouter
+import { useRouter } from 'next/navigation';
+import { AskTeacherDialog } from '@/components/user/ask-teacher-dialog'; // Import AskTeacherDialog
 
 // WhatsApp number for validation
 const WHATSAPP_NUMBER = '+97798XXXXXXXX'; // Placeholder number
 
 // Updated Subscription details including color classes and features
-const subscriptionDetails: Record<SubscriptionPlan, { name: string; features: { text: string; included: boolean }[]; colorClass: string; price: string }> = {
+const subscriptionDetails: Record<SubscriptionPlan, { name: string; features: { text: string; included: boolean }[]; colorClass: string; price: string, askLimit: number }> = {
     free: {
         name: 'Free',
         features: [
@@ -43,10 +44,12 @@ const subscriptionDetails: Record<SubscriptionPlan, { name: string; features: { 
           { text: 'Answer History Tracking', included: false },
           { text: 'Performance Analytics', included: false },
           { text: 'Downloadable Notes & PDFs', included: false },
+          { text: 'Ask Teacher (0 questions/day)', included: false },
           { text: 'Basic Support', included: true },
         ],
         colorClass: 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700', // Gray for Free
-        price: 'NRS 0'
+        price: 'NRS 0',
+        askLimit: 0,
     },
     basic: {
         name: 'Basic',
@@ -55,10 +58,12 @@ const subscriptionDetails: Record<SubscriptionPlan, { name: string; features: { 
           { text: 'Answer History Tracking', included: false },
           { text: 'Performance Analytics', included: false },
           { text: 'Downloadable Notes & PDFs', included: false },
+          { text: 'Ask Teacher (2 questions/day)', included: true },
           { text: 'Basic Support', included: true },
         ],
         colorClass: 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700', // Green for Basic
-        price: 'NRS 50 / week'
+        price: 'NRS 50 / week',
+        askLimit: 2,
     },
     premium: {
         name: 'Premium',
@@ -67,10 +72,12 @@ const subscriptionDetails: Record<SubscriptionPlan, { name: string; features: { 
           { text: 'Answer History Tracking', included: true },
           { text: 'Performance Analytics', included: true },
           { text: 'Downloadable Notes & PDFs', included: true },
+          { text: 'Ask Teacher (20 questions/day)', included: true },
           { text: 'Priority Support', included: true },
         ],
         colorClass: 'bg-yellow-100 text-yellow-800 border-yellow-400 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700', // Gold/Yellow for Premium
-        price: 'NRS 100 / week'
+        price: 'NRS 100 / week',
+        askLimit: 20,
     },
 };
 
@@ -81,7 +88,10 @@ export default function UserDashboardPage() {
   const [results, setResults] = useState<QuizResult[]>([]);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [loadingResults, setLoadingResults] = useState(true);
-  const router = useRouter(); // Initialize router
+  const [isAskTeacherDialogOpen, setIsAskTeacherDialogOpen] = useState(false);
+  const [canAskTeacher, setCanAskTeacher] = useState(false); // State to control if user can ask based on limit
+  const [askTeacherUsage, setAskTeacherUsage] = useState(0); // Current usage count for the day
+  const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -92,30 +102,58 @@ export default function UserDashboardPage() {
         try {
           const userProfile = await getUserProfile(currentUser.uid);
           setProfile(userProfile);
-          if (userProfile) { // Fetch results only if profile exists
-             const quizResults = await getUserQuizResults(currentUser.uid, 5); // Fetch latest 5 results
-             setResults(quizResults);
+          if (userProfile) {
+            // Fetch results only if profile exists
+            const quizResults = await getUserQuizResults(currentUser.uid, 5);
+            setResults(quizResults);
+
+            // --- Simulate Ask Teacher Usage Check ---
+            const todayUsage = userProfile.lastAskTeacherDate && isToday(userProfile.lastAskTeacherDate.toDate())
+              ? userProfile.askTeacherCount || 0
+              : 0;
+            const limit = subscriptionDetails[userProfile.subscription]?.askLimit || 0;
+            setAskTeacherUsage(todayUsage);
+            setCanAskTeacher(todayUsage < limit && userProfile.subscription !== 'free');
+            // --- End Simulation ---
+
           } else {
-             setResults([]); // No profile, no results
-             console.warn("User profile not found for UID:", currentUser.uid);
+            setResults([]);
+            setCanAskTeacher(false); // Cannot ask if no profile
+            console.warn("User profile not found for UID:", currentUser.uid);
           }
         } catch (error) {
           console.error('Failed to load dashboard data:', error);
-          // Add toast notification here if needed
         } finally {
           setLoadingProfile(false);
           setLoadingResults(false);
         }
       } else {
-        // User is logged out, clear state (though layout should redirect)
         setProfile(null);
         setResults([]);
+        setCanAskTeacher(false); // Cannot ask if logged out
         setLoadingProfile(false);
         setLoadingResults(false);
       }
     });
     return () => unsubscribe();
   }, []);
+
+  // Function to handle asking a question (simulated)
+  const handleAskQuestionSubmit = async (questionText: string) => {
+      if (!profile || !canAskTeacher) return; // Guard clause
+
+       // Simulate usage update (in real app, update Firestore)
+       const newCount = askTeacherUsage + 1;
+       setAskTeacherUsage(newCount);
+       const limit = subscriptionDetails[profile.subscription]?.askLimit || 0;
+       setCanAskTeacher(newCount < limit);
+       // Placeholder for actual Firestore update
+       // await updateAskTeacherUsage(profile.uid, newCount);
+       console.log("Simulating asking question:", questionText, "New count:", newCount);
+       // Close dialog after submission
+       setIsAskTeacherDialogOpen(false);
+   };
+
 
   const calculateAverageScore = () => {
         if (results.length === 0) return 0;
@@ -125,20 +163,22 @@ export default function UserDashboardPage() {
 
     const getSubscriptionBadgeVariant = (plan?: SubscriptionPlan): "default" | "secondary" | "outline" | "destructive" | null | undefined => {
         switch (plan) {
-            case 'premium': return 'default'; // Using ShadCN default (usually primary color) for premium badge
+            case 'premium': return 'default';
             case 'basic': return 'secondary';
             case 'free': return 'outline';
             default: return 'outline';
         }
     };
 
-     // Check if validation alert should be shown
      const showValidationAlert = profile && profile.subscription !== 'free' && !profile.validated;
      const currentPlanDetails = profile?.subscription ? subscriptionDetails[profile.subscription] : subscriptionDetails.free;
 
-     // Determine content lock status based on new requirements
      const contentLocked = !profile || !(profile.subscription === 'premium' && profile.validated);
-     const analyticsLocked = !profile || !(profile.subscription === 'premium' && profile.validated); // Lock analytics for non-premium/validated
+     const analyticsLocked = !profile || !(profile.subscription === 'premium' && profile.validated);
+
+     const askTeacherLocked = !profile || profile.subscription === 'free'; // Lock for free users
+     const askLimit = profile ? currentPlanDetails.askLimit : 0;
+     const askLimitReached = askTeacherUsage >= askLimit;
 
      const UpgradeAlertDialog = ({ triggerButton }: { triggerButton: React.ReactNode }) => (
         <AlertDialog>
@@ -146,10 +186,10 @@ export default function UserDashboardPage() {
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle className="flex items-center gap-2">
-                        <Lock className="text-primary" /> Content Locked
+                        <Lock className="text-primary" /> Feature Locked
                     </AlertDialogTitle>
                     <AlertDialogDescription>
-                        This content is exclusive to our validated Premium members. Please upgrade your plan and validate your payment to get access.
+                        This feature is exclusive to our validated Premium members. Please upgrade your plan and validate your payment to get access.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -163,6 +203,34 @@ export default function UserDashboardPage() {
             </AlertDialogContent>
         </AlertDialog>
      );
+
+    // Dialog for Limit Reached
+    const LimitReachedDialog = ({ triggerButton }: { triggerButton: React.ReactNode }) => (
+        <AlertDialog>
+            <AlertDialogTrigger asChild>{triggerButton}</AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2">
+                        <AlertTriangle className="text-yellow-500" /> Daily Limit Reached
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                        You have reached your daily limit of {askLimit} question(s) for the 'Ask Teacher' feature on the {profile?.subscription} plan.
+                        Please try again tomorrow or upgrade your plan for a higher limit.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Ask Tomorrow</AlertDialogCancel>
+                    {profile?.subscription !== 'premium' && (
+                        <AlertDialogAction asChild>
+                            <Link href="/pricing">
+                                <Zap className="mr-2 h-4 w-4" /> Upgrade Plan
+                            </Link>
+                        </AlertDialogAction>
+                    )}
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
 
      const pdfUrl = "https://ag.gov.np/files/Constitution-of-Nepal_2072_Eng_www.moljpa.gov_.npDate-72_11_16.pdf";
 
@@ -258,7 +326,6 @@ export default function UserDashboardPage() {
             </CardHeader>
             <CardContent>
                  <p className="text-primary-foreground/90 mb-4 text-sm">
-                     {/* Adjust text based on plan/validation */}
                      {profile?.subscription === 'free'
                        ? 'Take one of your 2 daily quizzes (10 questions).'
                        : profile?.subscription === 'basic'
@@ -396,8 +463,8 @@ export default function UserDashboardPage() {
          </Card>
       </div>
 
-       {/* Third Row: Notes/Resources & Videos (Premium Only) */}
-       <div className="grid gap-6 md:grid-cols-2">
+       {/* Third Row: Notes/Resources, Videos & Ask Teacher */}
+       <div className="grid gap-6 md:grid-cols-3">
           {/* Notes & Resources Section */}
           <Card className="relative overflow-hidden flex flex-col">
               <CardHeader>
@@ -408,15 +475,14 @@ export default function UserDashboardPage() {
                  {contentLocked && (
                      <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-10 rounded-b-lg">
                          <Lock size={40} className="text-primary mb-4" />
-                         <p className="text-center font-semibold mb-4">This section requires a validated Premium plan.</p>
+                         <p className="text-center font-semibold mb-4">Requires validated Premium plan.</p>
                           <UpgradeAlertDialog
                              triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Now</Button>}
                          />
                      </div>
                  )}
-                 {/* Actual content goes here */}
+                 {/* Actual content */}
                   <div className={cn("space-y-3", contentLocked ? "opacity-30 pointer-events-none" : "")}>
-                      {/* Constitution PDF Link */}
                       <div className="flex justify-between items-center p-3 border rounded-md">
                           <span className="text-sm font-medium">Constitution of Nepal - Key Articles PDF</span>
                           <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className={cn(contentLocked ? 'pointer-events-none' : '')}>
@@ -425,7 +491,6 @@ export default function UserDashboardPage() {
                              </Button>
                           </a>
                       </div>
-                      {/* Other Resource Items */}
                       <div className="flex justify-between items-center p-3 border rounded-md">
                           <span className="text-sm font-medium">Legal Theory Summaries</span>
                           <Button variant="outline" size="sm" disabled={contentLocked}>View</Button>
@@ -448,55 +513,80 @@ export default function UserDashboardPage() {
                   {contentLocked && (
                      <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-10 rounded-b-lg">
                          <Lock size={40} className="text-primary mb-4" />
-                         <p className="text-center font-semibold mb-4">This section requires a validated Premium plan.</p>
+                         <p className="text-center font-semibold mb-4">Requires validated Premium plan.</p>
                          <UpgradeAlertDialog
                              triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Now</Button>}
                          />
                      </div>
                  )}
-                  {/* Actual content goes here */}
+                  {/* Actual content */}
                    <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-4", contentLocked ? "opacity-30 pointer-events-none" : "")}>
-                       {/* Example Video Item */}
                        <div className="border rounded-md overflow-hidden">
-                            <div className="aspect-video bg-muted flex items-center justify-center">
-                                <Video size={48} className="text-muted-foreground" />
-                            </div>
-                            <div className="p-3">
-                                <p className="text-sm font-medium mb-1 line-clamp-1">Intro to Criminal Law</p>
-                                <Button variant="link" size="sm" className="p-0 h-auto text-xs" disabled={contentLocked}>Watch Now</Button>
-                            </div>
+                            <div className="aspect-video bg-muted flex items-center justify-center"> <Video size={48} className="text-muted-foreground" /> </div>
+                            <div className="p-3"> <p className="text-sm font-medium mb-1 line-clamp-1">Intro to Criminal Law</p> <Button variant="link" size="sm" className="p-0 h-auto text-xs" disabled={contentLocked}>Watch Now</Button> </div>
                        </div>
                        <div className="border rounded-md overflow-hidden">
-                            <div className="aspect-video bg-muted flex items-center justify-center">
-                                <Video size={48} className="text-muted-foreground" />
-                            </div>
-                            <div className="p-3">
-                                <p className="text-sm font-medium mb-1 line-clamp-1">Understanding Writs</p>
-                                <Button variant="link" size="sm" className="p-0 h-auto text-xs" disabled={contentLocked}>Watch Now</Button>
-                            </div>
+                            <div className="aspect-video bg-muted flex items-center justify-center"> <Video size={48} className="text-muted-foreground" /> </div>
+                            <div className="p-3"> <p className="text-sm font-medium mb-1 line-clamp-1">Understanding Writs</p> <Button variant="link" size="sm" className="p-0 h-auto text-xs" disabled={contentLocked}>Watch Now</Button> </div>
                        </div>
-                       <div className="border rounded-md overflow-hidden">
-                            <div className="aspect-video bg-muted flex items-center justify-center">
-                                <Video size={48} className="text-muted-foreground" />
-                            </div>
-                            <div className="p-3">
-                                <p className="text-sm font-medium mb-1 line-clamp-1">Sources of Law</p>
-                                <Button variant="link" size="sm" className="p-0 h-auto text-xs" disabled={contentLocked}>Watch Now</Button>
-                            </div>
-                       </div>
-                       <div className="border rounded-md overflow-hidden">
-                            <div className="aspect-video bg-muted flex items-center justify-center">
-                                <Video size={48} className="text-muted-foreground" />
-                            </div>
-                            <div className="p-3">
-                                <p className="text-sm font-medium mb-1 line-clamp-1">Exam Strategy Session</p>
-                                <Button variant="link" size="sm" className="p-0 h-auto text-xs" disabled={contentLocked}>Watch Now</Button>
-                            </div>
-                       </div>
+                       {/* Add more video placeholders */}
                    </div>
               </CardContent>
           </Card>
+
+            {/* Ask Teacher Section */}
+             <Card className="relative overflow-hidden flex flex-col">
+              <CardHeader>
+                 <CardTitle className="flex items-center gap-2"><MessageSquareQuestion size={20} /> Ask a Teacher</CardTitle>
+                 <CardDescription>Get your legal questions answered by experts.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-grow relative flex flex-col items-center justify-center text-center">
+                  {askTeacherLocked && (
+                     <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-10 rounded-b-lg">
+                         <Lock size={40} className="text-primary mb-4" />
+                         <p className="text-center font-semibold mb-4">Available for Basic & Premium plans.</p>
+                          <UpgradeAlertDialog
+                             triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Plan</Button>}
+                         />
+                     </div>
+                 )}
+                 {/* Content visible to Basic/Premium users */}
+                 <div className={cn("flex flex-col items-center justify-center text-center", askTeacherLocked ? "opacity-30 pointer-events-none" : "")}>
+                     <p className="text-sm text-muted-foreground mb-4">
+                          You have {askLimit - askTeacherUsage} question(s) remaining today.
+                     </p>
+                     {askLimitReached ? (
+                         <LimitReachedDialog
+                             triggerButton={
+                                <Button size="lg" disabled>
+                                    <AlertTriangle className="mr-2 h-4 w-4" /> Limit Reached
+                                </Button>
+                             }
+                         />
+                     ) : (
+                          <Button size="lg" onClick={() => setIsAskTeacherDialogOpen(true)} disabled={showValidationAlert}>
+                              Ask Question
+                          </Button>
+                     )}
+                     {showValidationAlert && <p className="text-xs text-destructive mt-2">Please validate your account to use this feature.</p>}
+                 </div>
+              </CardContent>
+           </Card>
+
        </div>
+
+        {/* Ask Teacher Dialog */}
+         {profile && (
+             <AskTeacherDialog
+                 isOpen={isAskTeacherDialogOpen}
+                 onClose={() => setIsAskTeacherDialogOpen(false)}
+                 onSubmit={handleAskQuestionSubmit}
+                 limit={askLimit}
+                 usage={askTeacherUsage}
+                 planName={profile.subscription || 'free'} // Provide plan name
+             />
+         )}
+
     </div>
   );
 }
@@ -535,3 +625,4 @@ function SubscriptionSkeleton() {
          </div>
     );
 }
+
