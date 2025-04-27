@@ -24,10 +24,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { auth } from '@/lib/firebase/config';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { getUserProfile, getUserQuizResults } from '@/lib/firebase/firestore'; // Removed updateAskTeacherUsage - will be handled conceptually
+import { getUserProfile, getUserQuizResults, updateAskTeacherUsage } from '@/lib/firebase/firestore'; // Use actual update function
 import type { UserProfile, QuizResult, SubscriptionPlan } from '@/types/user';
 import { formatDistanceToNow, isToday } from 'date-fns'; // Added isToday
-import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video, History, BarChart2, X, ExternalLink, MessageSquareQuestion } from 'lucide-react'; // Added MessageSquareQuestion
+import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video, History, BarChart2, X, ExternalLink, MessageSquareQuote } from 'lucide-react'; // Changed MessageSquareQuestion to MessageSquareQuote
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { AskTeacherDialog } from '@/components/user/ask-teacher-dialog'; // Import AskTeacherDialog
@@ -107,14 +107,18 @@ export default function UserDashboardPage() {
             const quizResults = await getUserQuizResults(currentUser.uid, 5);
             setResults(quizResults);
 
-            // --- Simulate Ask Teacher Usage Check ---
+            // --- Ask Teacher Usage Check ---
+            // Check if the last ask date is today
             const todayUsage = userProfile.lastAskTeacherDate && isToday(userProfile.lastAskTeacherDate.toDate())
               ? userProfile.askTeacherCount || 0
-              : 0;
-            const limit = subscriptionDetails[userProfile.subscription]?.askLimit || 0;
+              : 0; // If last ask was not today, reset usage count to 0 for today
+
+            // Get the limit for the current plan
+            const limit = subscriptionDetails[userProfile.subscription]?.askLimit ?? 0; // Use ?? for default
+
             setAskTeacherUsage(todayUsage);
-            setCanAskTeacher(todayUsage < limit && userProfile.subscription !== 'free');
-            // --- End Simulation ---
+            setCanAskTeacher(todayUsage < limit && userProfile.subscription !== 'free' && userProfile.validated); // Also check validation
+            // --- End Check ---
 
           } else {
             setResults([]);
@@ -138,20 +142,28 @@ export default function UserDashboardPage() {
     return () => unsubscribe();
   }, []);
 
-  // Function to handle asking a question (simulated)
+  // Function to handle asking a question
   const handleAskQuestionSubmit = async (questionText: string) => {
       if (!profile || !canAskTeacher) return; // Guard clause
 
-       // Simulate usage update (in real app, update Firestore)
        const newCount = askTeacherUsage + 1;
-       setAskTeacherUsage(newCount);
-       const limit = subscriptionDetails[profile.subscription]?.askLimit || 0;
-       setCanAskTeacher(newCount < limit);
-       // Placeholder for actual Firestore update
-       // await updateAskTeacherUsage(profile.uid, newCount);
-       console.log("Simulating asking question:", questionText, "New count:", newCount);
-       // Close dialog after submission
-       setIsAskTeacherDialogOpen(false);
+       try {
+           // Update Firestore immediately
+           await updateAskTeacherUsage(profile.uid, newCount);
+
+           // Update local state for immediate UI feedback
+           setAskTeacherUsage(newCount);
+           const limit = subscriptionDetails[profile.subscription]?.askLimit || 0;
+           setCanAskTeacher(newCount < limit && profile.validated); // Re-check canAskTeacher state
+
+           console.log("Question asked. New count:", newCount);
+           // Close dialog after successful submission
+           setIsAskTeacherDialogOpen(false);
+       } catch (error) {
+            console.error("Failed to update Ask Teacher usage:", error);
+            // Optionally show an error toast to the user
+            // The UI state won't update if the Firestore update fails
+       }
    };
 
 
@@ -537,7 +549,7 @@ export default function UserDashboardPage() {
             {/* Ask Teacher Section */}
              <Card className="relative overflow-hidden flex flex-col">
               <CardHeader>
-                 <CardTitle className="flex items-center gap-2"><MessageSquareQuestion size={20} /> Ask a Teacher</CardTitle>
+                 <CardTitle className="flex items-center gap-2"><MessageSquareQuote size={20} /> Ask a Teacher</CardTitle> {/* Updated Icon */}
                  <CardDescription>Get your legal questions answered by experts.</CardDescription>
               </CardHeader>
               <CardContent className="flex-grow relative flex flex-col items-center justify-center text-center">
@@ -553,9 +565,9 @@ export default function UserDashboardPage() {
                  {/* Content visible to Basic/Premium users */}
                  <div className={cn("flex flex-col items-center justify-center text-center", askTeacherLocked ? "opacity-30 pointer-events-none" : "")}>
                      <p className="text-sm text-muted-foreground mb-4">
-                          You have {askLimit - askTeacherUsage} question(s) remaining today.
+                          You have {Math.max(0, askLimit - askTeacherUsage)} question(s) remaining today. {/* Ensure non-negative */}
                      </p>
-                     {askLimitReached ? (
+                     {askLimitReached && profile?.subscription !== 'free' ? ( // Ensure limit reached is only for paid plans
                          <LimitReachedDialog
                              triggerButton={
                                 <Button size="lg" disabled>
@@ -564,11 +576,11 @@ export default function UserDashboardPage() {
                              }
                          />
                      ) : (
-                          <Button size="lg" onClick={() => setIsAskTeacherDialogOpen(true)} disabled={showValidationAlert}>
+                          <Button size="lg" onClick={() => setIsAskTeacherDialogOpen(true)} disabled={showValidationAlert || askTeacherLocked}>
                               Ask Question
                           </Button>
                      )}
-                     {showValidationAlert && <p className="text-xs text-destructive mt-2">Please validate your account to use this feature.</p>}
+                     {showValidationAlert && profile?.subscription !== 'free' && <p className="text-xs text-destructive mt-2">Please validate your account to use this feature.</p>}
                  </div>
               </CardContent>
            </Card>
@@ -626,3 +638,8 @@ function SubscriptionSkeleton() {
     );
 }
 
+
+
+    
+
+    
