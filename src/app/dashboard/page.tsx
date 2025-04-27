@@ -1,8 +1,9 @@
 
+
 'use client';
 
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react'; // Added useRef
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,13 +31,14 @@ import {
 } from "@/components/ui/accordion"; // Import Accordion
 import { auth } from '@/lib/firebase/config';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { getUserProfile, getUserQuizResults, updateAskTeacherUsage, saveTeacherQuestion, getUserTeacherQuestions } from '@/lib/firebase/firestore'; // Added saveTeacherQuestion, getUserTeacherQuestions
+import { getUserProfile, getUserQuizResults, updateAskTeacherUsage, saveTeacherQuestion, getUserTeacherQuestions, clearUserNotifications } from '@/lib/firebase/firestore'; // Added saveTeacherQuestion, getUserTeacherQuestions, clearUserNotifications
 import type { UserProfile, QuizResult, SubscriptionPlan, TeacherQuestion } from '@/types/user'; // Import TeacherQuestion
 import { formatDistanceToNow, isToday, format } from 'date-fns'; // Added format
-import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video, History, BarChart2, X, ExternalLink, MessageSquareQuote, HelpCircle, Clock, Check } from 'lucide-react'; // Added icons for questions
+import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video, History, BarChart2, X, ExternalLink, MessageSquareQuote, HelpCircle, Clock, Check, Bell } from 'lucide-react'; // Added Bell icon
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { AskTeacherDialog } from '@/components/user/ask-teacher-dialog'; // Import AskTeacherDialog
+import { useToast } from '@/hooks/use-toast'; // Import useToast
 
 // WhatsApp number for validation
 const WHATSAPP_NUMBER = '+97798XXXXXXXX'; // Placeholder number
@@ -93,6 +95,7 @@ export default function UserDashboardPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [results, setResults] = useState<QuizResult[]>([]);
   const [teacherQuestions, setTeacherQuestions] = useState<TeacherQuestion[]>([]); // State for user's asked questions
+  const [unreadNotifications, setUnreadNotifications] = useState(0); // State for notification count
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [loadingResults, setLoadingResults] = useState(true);
   const [loadingTeacherQuestions, setLoadingTeacherQuestions] = useState(true); // Loading state for teacher questions
@@ -100,6 +103,9 @@ export default function UserDashboardPage() {
   const [canAskTeacher, setCanAskTeacher] = useState(false); // State to control if user can ask based on limit
   const [askTeacherUsage, setAskTeacherUsage] = useState(0); // Current usage count for the day
   const router = useRouter();
+  const { toast } = useToast(); // Initialize toast
+  const myQuestionsRef = useRef<HTMLDivElement>(null); // Ref for scrolling
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -112,6 +118,7 @@ export default function UserDashboardPage() {
           const userProfile = await getUserProfile(currentUser.uid);
           setProfile(userProfile);
           if (userProfile) {
+             setUnreadNotifications(userProfile.unreadNotifications || 0); // Set notification count
             // Fetch results and teacher questions in parallel
             const [quizResults, fetchedTeacherQuestions] = await Promise.all([
                 getUserQuizResults(currentUser.uid, 5),
@@ -134,10 +141,12 @@ export default function UserDashboardPage() {
             setResults([]);
             setTeacherQuestions([]); // Clear if no profile
             setCanAskTeacher(false);
+             setUnreadNotifications(0); // Reset count
             console.warn("User profile not found for UID:", currentUser.uid);
           }
         } catch (error) {
           console.error('Failed to load dashboard data:', error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to load dashboard data.' }); // Show toast on error
         } finally {
           setLoadingProfile(false);
           setLoadingResults(false);
@@ -147,6 +156,7 @@ export default function UserDashboardPage() {
         setProfile(null);
         setResults([]);
         setTeacherQuestions([]); // Clear on logout
+        setUnreadNotifications(0); // Reset count
         setCanAskTeacher(false);
         setLoadingProfile(false);
         setLoadingResults(false);
@@ -154,7 +164,7 @@ export default function UserDashboardPage() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [toast]); // Added toast dependency
 
   // Function to handle asking a question
   const handleAskQuestionSubmit = async (questionText: string) => {
@@ -180,14 +190,34 @@ export default function UserDashboardPage() {
             setLoadingTeacherQuestions(false);
 
            console.log("Question asked. New count:", newCount);
+           toast({ title: 'Question Submitted', description: 'Your question has been sent to the teacher.' }); // Success toast
            // Close dialog after successful submission
            setIsAskTeacherDialogOpen(false);
        } catch (error) {
             console.error("Failed to submit question or update usage:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to submit your question.' }); // Error toast
             // Optionally show an error toast to the user
             // The UI state won't update if the Firestore update fails
        }
    };
+
+  // Function to handle clicking the notification bell
+  const handleNotificationClick = async () => {
+      if (myQuestionsRef.current) {
+          myQuestionsRef.current.scrollIntoView({ behavior: 'smooth' });
+
+         // Clear notifications if user is logged in and has unread notifications
+          if (user && unreadNotifications > 0) {
+              try {
+                  await clearUserNotifications(user.uid);
+                  setUnreadNotifications(0); // Update UI immediately
+              } catch (error) {
+                  console.error("Failed to clear notifications:", error);
+                  toast({ variant: 'destructive', title: 'Error', description: 'Could not clear notifications.' });
+              }
+          }
+      }
+  };
 
 
   const calculateAverageScore = () => {
@@ -216,8 +246,18 @@ export default function UserDashboardPage() {
      const askLimitReached = askTeacherUsage >= askLimit;
 
     const handleUpgradeClick = () => {
-        // Directly go to pricing page. Pricing page handles logic based on login status.
-        router.push('/pricing');
+        // Direct logged-in users to payment page with their current choice if applicable
+        if (profile && profile.subscription !== 'premium') {
+            // Determine the "next" plan (simple logic: free/basic -> premium)
+            const targetPlan: SubscriptionPlan = 'premium';
+             router.push(`/payment?plan=${targetPlan}`);
+        } else if (!profile) {
+            // If not logged in (shouldn't happen in dashboard layout, but safeguard)
+            router.push('/login?redirect=/pricing');
+        } else {
+             // Already premium, maybe link to profile or manage subscription?
+             router.push('/dashboard/profile');
+        }
     };
 
 
@@ -274,11 +314,11 @@ export default function UserDashboardPage() {
      const getStatusBadge = (status: TeacherQuestion['status']) => {
          switch (status) {
              case 'pending':
-                 return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300"><Clock size={12} className="mr-1"/> Pending</Badge>;
+                 return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700"><Clock size={12} className="mr-1"/> Pending</Badge>;
              case 'answered':
-                 return <Badge variant="default" className="bg-green-100 text-green-800 border-green-300"><Check size={12} className="mr-1"/> Answered</Badge>;
-             case 'rejected':
-                 return <Badge variant="destructive"><X size={12} className="mr-1"/> Rejected</Badge>;
+                 return <Badge variant="default" className="bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700"><Check size={12} className="mr-1"/> Answered</Badge>;
+             case 'rejected': // Added style for rejected
+                 return <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-300 dark:bg-red-900 dark:text-red-200 dark:border-red-700"><X size={12} className="mr-1"/> Rejected</Badge>;
              default:
                  return <Badge variant="secondary">Unknown</Badge>;
          }
@@ -287,7 +327,21 @@ export default function UserDashboardPage() {
 
   return (
     <div className="p-6 md:p-10 space-y-8"> {/* Added space-y */}
-      <h1 className="text-2xl md:text-3xl font-bold">My Dashboard</h1>
+       {/* Dashboard Header Row */}
+       <div className="flex justify-between items-center">
+          <h1 className="text-2xl md:text-3xl font-bold">My Dashboard</h1>
+          {/* Notification Bell */}
+          <div className="relative">
+              <Button variant="ghost" size="icon" onClick={handleNotificationClick} className="relative">
+                   <Bell size={20} />
+                   {unreadNotifications > 0 && (
+                       <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
+                           {unreadNotifications}
+                       </span>
+                   )}
+              </Button>
+          </div>
+       </div>
 
       {/* Validation Alert */}
       {showValidationAlert && (
@@ -631,7 +685,7 @@ export default function UserDashboardPage() {
            </Card>
 
            {/* My Questions Section */}
-           <Card className="relative overflow-hidden flex flex-col">
+           <Card className="relative overflow-hidden flex flex-col" ref={myQuestionsRef}> {/* Added ref */}
                <CardHeader>
                    <CardTitle className="flex items-center gap-2"><HelpCircle size={20} /> My Questions</CardTitle>
                    <CardDescription>View the status and answers to your submitted questions.</CardDescription>
@@ -652,7 +706,14 @@ export default function UserDashboardPage() {
                       ) : teacherQuestions.length > 0 ? (
                            <Accordion type="single" collapsible className="w-full">
                               {teacherQuestions.map((q, index) => (
-                                 <AccordionItem value={`item-${index}`} key={q.id}>
+                                 <AccordionItem
+                                    value={`item-${index}`}
+                                    key={q.id}
+                                     // Highlight answered questions with unread notifications
+                                     className={cn(
+                                        q.status === 'answered' && (profile?.lastNotificationCheck ? q.answeredAt && q.answeredAt > profile.lastNotificationCheck : true) ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800' : ''
+                                     )}
+                                 >
                                    <AccordionTrigger className="text-sm hover:no-underline">
                                        <div className="flex justify-between items-center w-full pr-2">
                                           <span className="truncate flex-1 mr-2">{q.questionText}</span>
@@ -664,7 +725,7 @@ export default function UserDashboardPage() {
                                        {q.status === 'answered' && q.answerText ? (
                                            <>
                                            <p><strong>Answered:</strong> {q.answeredAt ? format(q.answeredAt.toDate(), 'PPP p') : 'N/A'}</p>
-                                           <p className="whitespace-pre-wrap"><strong>Answer:</strong> {q.answerText}</p>
+                                           <p className="whitespace-pre-wrap p-2 bg-muted/50 rounded"><strong>Answer:</strong> {q.answerText}</p>
                                            </>
                                        ) : q.status === 'pending' ? (
                                            <p>Awaiting answer from the teacher.</p>
@@ -748,3 +809,5 @@ function MyQuestionsSkeleton() {
         </div>
     );
 }
+
+```

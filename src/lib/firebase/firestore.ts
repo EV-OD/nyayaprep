@@ -1,4 +1,5 @@
 
+
 import { db, auth } from './config';
 import {
   collection,
@@ -14,6 +15,7 @@ import {
   limit,
   serverTimestamp,
   updateDoc,
+  increment, // Import increment
 } from 'firebase/firestore';
 import type { UserProfile, QuizResult, SubscriptionPlan, TeacherQuestion } from '@/types/user'; // Import TeacherQuestion
 import type { User } from 'firebase/auth';
@@ -26,6 +28,7 @@ const teacherQuestionsCollection = collection(db, 'teacherQuestions'); // Collec
  * Creates or updates a user profile document in Firestore.
  * Initializes the 'validated' field based on the subscription plan.
  * Initializes 'askTeacherCount' and 'lastAskTeacherDate'.
+ * Initializes 'unreadNotifications' and 'lastNotificationCheck'.
  * @param user Firebase User object.
  * @param additionalData Additional data like name, phone, subscription, and profile picture URL.
  */
@@ -54,6 +57,9 @@ export const createUserProfileDocument = async (
     // Initialize Ask Teacher fields
     askTeacherCount: 0,
     lastAskTeacherDate: Timestamp.fromMillis(0), // Initialize with epoch to ensure first check works
+    // Initialize Notification fields
+    unreadNotifications: 0,
+    lastNotificationCheck: Timestamp.now(), // Set initial check time
   };
 
   try {
@@ -91,6 +97,8 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
           validated: data.validated === true, // Ensure boolean check
           askTeacherCount: data.askTeacherCount || 0,
           lastAskTeacherDate: data.lastAskTeacherDate instanceof Timestamp ? data.lastAskTeacherDate : Timestamp.fromMillis(0), // Default if missing
+          unreadNotifications: data.unreadNotifications || 0, // Default to 0 if missing
+          lastNotificationCheck: data.lastNotificationCheck instanceof Timestamp ? data.lastNotificationCheck : Timestamp.now(), // Default to now if missing
       };
       return profile;
     } else {
@@ -170,14 +178,18 @@ export const getUserQuizResults = async (userId: string, count?: number): Promis
     console.error('Error getting user quiz results: ', firebaseError.message);
     // Check for specific index error (optional, for better logging)
     if (firebaseError.message.includes('requires an index')) {
-        console.warn(
-          `Firestore Query Requires Index: The query to fetch user quiz results needs a composite index:\n` +
-          `Collection: 'quizResults', Fields: 'userId' (Asc), 'completedAt' (Desc).\n`+
-          `Please create this index in your Firebase console. If you just created it, please wait a few minutes for it to finish building before retrying.`
-        );
-    }
-    // Return empty array on error to prevent breaking the UI
-    return [];
+       const isBuilding = firebaseError.message.includes('currently building');
+       const indexCreationMessage =
+         `Firestore Query Requires Index: The query to fetch user quiz results needs a composite index:\n` +
+         `Collection: 'quizResults', Fields: 'userId' (Asc), 'completedAt' (Desc).\n`+
+         `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`;
+       console.warn(indexCreationMessage);
+       // Throw or display a user-friendly message indicating the index issue
+       throw new Error(indexCreationMessage); // Propagate a more informative error
+     }
+    // Return empty array on error to prevent breaking the UI if not throwing
+    // return [];
+    throw error; // Re-throw other errors
   }
 };
 
@@ -323,13 +335,17 @@ export const getUserTeacherQuestions = async (userId: string): Promise<TeacherQu
         console.error('Error getting user teacher questions: ', firebaseError.message);
         if (firebaseError.message.includes('requires an index')) {
            const isBuilding = firebaseError.message.includes('currently building');
-           console.warn(
+           const indexCreationMessage =
              `Firestore Query Requires Index: The query to fetch user teacher questions needs a composite index:\n` +
              `Collection: 'teacherQuestions', Fields: 'userId' (Ascending), 'askedAt' (Descending).\n`+
-             `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`
-           );
-        }
-        return []; // Return empty on error
+             `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`;
+           console.warn(indexCreationMessage);
+           // Throw or display a user-friendly message indicating the index issue
+           throw new Error(indexCreationMessage); // Propagate a more informative error
+         }
+        // Return empty array on error
+        // return [];
+        throw error; // Re-throw other errors
     }
 };
 
@@ -367,40 +383,86 @@ export const getPendingTeacherQuestions = async (): Promise<TeacherQuestion[]> =
          console.error('Error getting pending teacher questions: ', firebaseError.message);
          if (firebaseError.message.includes('requires an index')) {
             const isBuilding = firebaseError.message.includes('currently building');
-            console.warn(
+            const indexCreationMessage =
               `Firestore Query Requires Index: The query to fetch pending teacher questions needs a composite index:\n` +
               `Collection: 'teacherQuestions', Fields: 'status' (Ascending), 'askedAt' (Ascending).\n`+
-              `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`
-            );
+              `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`;
+            console.warn(indexCreationMessage);
+            // Throw or display a user-friendly message indicating the index issue
+            throw new Error(indexCreationMessage); // Propagate a more informative error
          }
-         return []; // Return empty on error
+         // Return empty on error
+         // return [];
+         throw error; // Re-throw other errors
     }
 };
 
 /**
- * Updates a teacher question with an answer. Used by admins/teachers.
+ * Updates a teacher question with an answer and increments the user's notification count.
  * @param questionId The ID of the question document to update.
  * @param answerText The answer text.
  * @param answeredBy UID or name of the admin/teacher answering.
+ * @param currentUnreadCount The current unread notification count for the user (optional, for optimization).
  */
-export const answerTeacherQuestion = async (questionId: string, answerText: string, answeredBy: string): Promise<void> => {
+export const answerTeacherQuestion = async (
+    questionId: string,
+    answerText: string,
+    answeredBy: string,
+    currentUnreadCount?: number // Optional current count
+): Promise<void> => {
     if (!questionId || !answerText || !answeredBy) {
         throw new Error("Question ID, answer text, and answerer ID are required.");
     }
     const questionRef = doc(teacherQuestionsCollection, questionId);
+
     try {
+        // Get the question to find the user ID
+        const questionSnap = await getDoc(questionRef);
+        if (!questionSnap.exists()) {
+            throw new Error(`Question with ID ${questionId} not found.`);
+        }
+        const questionData = questionSnap.data() as TeacherQuestion;
+        const userId = questionData.userId;
+        const userRef = doc(usersCollection, userId);
+
+        // Update the question document
         await updateDoc(questionRef, {
             answerText: answerText,
             status: 'answered',
             answeredAt: serverTimestamp(),
             answeredBy: answeredBy,
         });
-        console.log(`Question ${questionId} answered successfully.`);
-        // TODO: Implement notification logic here (e.g., trigger a Cloud Function)
+
+        // Update the user's notification count atomically
+        await updateDoc(userRef, {
+            unreadNotifications: increment(1) // Use Firestore increment
+        });
+
+        console.log(`Question ${questionId} answered successfully. Notification count incremented for user ${userId}.`);
+
     } catch (error) {
         console.error(`Error answering question ${questionId}:`, error);
         throw error;
     }
 };
 
+/**
+ * Clears the unread notification count for a user and updates the last check time.
+ * @param uid The user's unique ID.
+ */
+export const clearUserNotifications = async (uid: string): Promise<void> => {
+    if (!uid) throw new Error("User UID is required.");
+    const userRef = doc(usersCollection, uid);
+    try {
+        await updateDoc(userRef, {
+            unreadNotifications: 0,
+            lastNotificationCheck: serverTimestamp(), // Update the last time notifications were checked
+        });
+        console.log(`Notifications cleared for user ${uid}`);
+    } catch (error) {
+        console.error(`Error clearing notifications for user ${uid}:`, error);
+        throw error;
+    }
+};
 
+    

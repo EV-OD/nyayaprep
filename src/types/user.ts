@@ -1,4 +1,5 @@
 
+
 import type { Answer } from './quiz';
 import type { Timestamp } from 'firebase/firestore';
 
@@ -16,6 +17,8 @@ export interface UserProfile {
   validated: boolean;
   askTeacherCount?: number; // Number of questions asked today
   lastAskTeacherDate?: Timestamp; // Date when the last question was asked
+  unreadNotifications?: number; // Count of unread notifications (e.g., answered questions)
+  lastNotificationCheck?: Timestamp; // Timestamp when the user last checked/cleared notifications
 }
 
 export interface QuizResult {
@@ -43,3 +46,5 @@ export interface TeacherQuestion {
     // fileUrl?: string | null; // Optional: URL for attached file (skipped for now)
     // answerFileUrl?: string | null; // Optional: URL for answer file (skipped for now)
 }
+
+```
