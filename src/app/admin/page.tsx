@@ -9,9 +9,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { auth } from '@/lib/firebase/config'; // Import Firebase auth instance
+import { signInWithEmailAndPassword, AuthError } from 'firebase/auth'; // Import Firebase auth functions
 
 export default function AdminLoginPage() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState(''); // Changed from username to email
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,30 +25,45 @@ export default function AdminLoginPage() {
     setIsLoading(true);
     setError(null);
 
-    // --- Mock Authentication ---
-    // Replace this with actual authentication logic (e.g., API call)
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
+    try {
+      // Sign in using Firebase Authentication
+      await signInWithEmailAndPassword(auth, email, password);
 
-    if (username === 'admin' && password === 'password') {
-      // Store auth state (e.g., in localStorage/sessionStorage or context/state management)
-      // For simplicity, we'll just navigate. In a real app, manage session state.
-      localStorage.setItem('isAdminAuthenticated', 'true'); // Example: VERY insecure, use proper sessions/tokens
-
-       toast({
+      toast({
         title: "Login Successful",
         description: "Redirecting to Admin Dashboard...",
       });
       router.push('/admin/dashboard'); // Redirect to dashboard
-    } else {
-       setError('Invalid username or password.');
-        toast({
-          variant: "destructive",
-          title: "Login Failed",
-          description: "Invalid username or password.",
-        });
+
+    } catch (err: unknown) {
+      const authError = err as AuthError; // Type assertion for Firebase AuthError
+      console.error("Firebase Login Error:", authError);
+
+      // Provide user-friendly error messages
+      let errorMessage = "An unexpected error occurred. Please try again.";
+      switch (authError.code) {
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+        case 'auth/invalid-credential': // More generic error in newer SDK versions
+          errorMessage = "Invalid email or password.";
+          break;
+        case 'auth/invalid-email':
+          errorMessage = "Please enter a valid email address.";
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = "Too many login attempts. Please try again later.";
+          break;
+        // Add other Firebase Auth error codes as needed
+      }
+      setError(errorMessage);
+      toast({
+        variant: "destructive",
+        title: "Login Failed",
+        description: errorMessage,
+      });
       setIsLoading(false);
     }
-    // --- End Mock Authentication ---
+    // No need to manually set loading to false on success, as navigation happens
   };
 
   return (
@@ -59,13 +76,13 @@ export default function AdminLoginPage() {
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="email">Email</Label> {/* Changed from username */}
               <Input
-                id="username"
-                type="text"
-                placeholder="Enter username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email" // Use email type
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isLoading}
               />

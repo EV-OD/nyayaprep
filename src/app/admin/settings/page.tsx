@@ -4,23 +4,24 @@ import * as React from 'react';
 import { AdminHeader } from '@/components/admin/admin-header';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+// import { Input } from '@/components/ui/input'; // Temporarily removed password fields
+// import { Label } from '@/components/ui/label'; // Temporarily removed password fields
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Save } from 'lucide-react';
+// import { auth } from '@/lib/firebase/config'; // Keep if needed for user info display
+// import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth'; // Firebase password change requires re-auth
 
 export default function SettingsPage() {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = React.useState(false);
-    const [currentPassword, setCurrentPassword] = React.useState('');
-    const [newPassword, setNewPassword] = React.useState('');
-    const [confirmPassword, setConfirmPassword] = React.useState('');
+    // const [currentPassword, setCurrentPassword] = React.useState(''); // Removed
+    // const [newPassword, setNewPassword] = React.useState(''); // Removed
+    // const [confirmPassword, setConfirmPassword] = React.useState(''); // Removed
     const [enableDarkMode, setEnableDarkMode] = React.useState(false); // Example setting
 
-    // In a real app, fetch current settings state, e.g., dark mode preference
+    // Fetch current theme settings
     React.useEffect(() => {
-        // Example: Check localStorage or fetch from backend
         const darkModePref = localStorage.getItem('darkMode') === 'true';
         setEnableDarkMode(darkModePref);
         if (darkModePref) {
@@ -31,29 +32,29 @@ export default function SettingsPage() {
     }, []);
 
 
-    const handlePasswordChange = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (newPassword !== confirmPassword) {
-            toast({ variant: 'destructive', title: 'Error', description: 'New passwords do not match.' });
-            return;
-        }
-        if (newPassword.length < 6) {
-             toast({ variant: 'destructive', title: 'Error', description: 'Password must be at least 6 characters.' });
-            return;
-        }
-
-        setIsLoading(true);
-         // Simulate API call to change password
-         console.log("Changing password for admin...");
-         await new Promise(resolve => setTimeout(resolve, 1500));
-         // Add error handling for incorrect current password from API
-         setIsLoading(false);
-         toast({ title: 'Success', description: 'Password changed successfully.' });
-         // Clear fields
-         setCurrentPassword('');
-         setNewPassword('');
-         setConfirmPassword('');
-    };
+    // Password change requires re-authentication, which is complex UI.
+    // Removing this functionality for now to keep it simple.
+    // const handlePasswordChange = async (e: React.FormEvent) => {
+    //     e.preventDefault();
+    //     // ... (Password validation logic) ...
+    //     setIsLoading(true);
+    //     try {
+    //         const user = auth.currentUser;
+    //         if (!user || !user.email) {
+    //             throw new Error("User not found or email missing.");
+    //         }
+    //         const credential = EmailAuthProvider.credential(user.email, currentPassword);
+    //         await reauthenticateWithCredential(user, credential);
+    //         await updatePassword(user, newPassword);
+    //         toast({ title: 'Success', description: 'Password changed successfully.' });
+    //         // Clear fields
+    //     } catch (error) {
+    //         console.error("Password change error:", error);
+    //         toast({ variant: 'destructive', title: 'Error', description: 'Failed to change password. Check current password or try again.' });
+    //     } finally {
+    //         setIsLoading(false);
+    //     }
+    // };
 
     const handleThemeChange = (checked: boolean) => {
         setEnableDarkMode(checked);
@@ -65,16 +66,17 @@ export default function SettingsPage() {
            document.documentElement.classList.remove('dark');
            toast({ title: 'Theme Changed', description: 'Light mode enabled.' });
          }
-        // Consider a more robust theme provider approach if needed
+        // No separate save button needed for theme, it applies instantly.
     };
 
-    const handleSaveChanges = async () => {
-        setIsLoading(true);
-        // Simulate saving general settings (like theme)
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setIsLoading(false);
-        toast({title: "Settings Saved", description: "Your preferences have been updated."})
-    }
+    // Optional: Save other general settings if added later
+    // const handleSaveChanges = async () => {
+    //     setIsLoading(true);
+    //     // Simulate saving general settings
+    //     await new Promise(resolve => setTimeout(resolve, 1000));
+    //     setIsLoading(false);
+    //     toast({title: "Settings Saved", description: "Your preferences have been updated."})
+    // }
 
 
     return (
@@ -104,23 +106,20 @@ export default function SettingsPage() {
                                 />
                              </div>
                         </CardContent>
-                         {/* <CardFooter className="border-t px-6 py-4">
-                             <Button onClick={handleSaveChanges} disabled={isLoading}>
-                                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                 Save Appearance
-                             </Button>
-                          </CardFooter> */}
+                         {/* Removed footer with save button for appearance */}
                     </Card>
 
 
-                     {/* Account Settings - Password Change */}
+                     {/* Account Settings - Password Change (Temporarily Removed) */}
+                    {/*
                     <Card>
                         <CardHeader>
                             <CardTitle>Account Security</CardTitle>
-                            <CardDescription>Change your admin password.</CardDescription>
+                            <CardDescription>Change your admin password (Requires re-authentication).</CardDescription>
                         </CardHeader>
                          <form onSubmit={handlePasswordChange}>
                              <CardContent className="space-y-4">
+                                <p className="text-sm text-muted-foreground">Password change requires re-entering your current password.</p>
                                 <div className="space-y-2">
                                     <Label htmlFor="current-password">Current Password</Label>
                                     <Input id="current-password" type="password" required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} disabled={isLoading}/>
@@ -142,20 +141,30 @@ export default function SettingsPage() {
                             </CardFooter>
                          </form>
                     </Card>
+                    */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Account Security</CardTitle>
+                            <CardDescription>Password changes are handled through standard Firebase methods (e.g., password reset emails).</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-muted-foreground text-sm">
+                                To change your password, please use the standard password reset functionality provided by Firebase Authentication.
+                            </p>
+                             {/* Optionally add a button/link to trigger password reset email if implemented */}
+                            {/*
+                             <Button variant="outline" className="mt-4" onClick={handlePasswordReset} disabled={isLoading}>
+                                 Send Password Reset Email
+                             </Button>
+                            */}
+                        </CardContent>
+                    </Card>
 
-                    {/* Other Settings (Placeholder) */}
-                     {/* <Card>
-                       <CardHeader>
-                         <CardTitle>General Settings</CardTitle>
-                         <CardDescription>Other application settings.</CardDescription>
-                       </CardHeader>
-                       <CardContent>
-                         <p className="text-muted-foreground">More settings will be available here...</p>
-                       </CardContent>
-                     </Card> */}
 
                 </div>
             </main>
         </div>
     );
 }
+// Need to add this import back if using the Label component
+import { Label } from '@/components/ui/label';
