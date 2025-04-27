@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -205,7 +204,7 @@ export function QuizClient({ questions }: QuizClientProps) {
   if (quizFinished) {
     // Result display remains the same
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 md:p-8 bg-gradient-to-br from-background to-muted/50">
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 md:p-8 bg-gradient-to-br from-background to-muted/50">
         <Card className="w-full max-w-md text-center p-6 md:p-8 rounded-xl shadow-lg border">
           <CardHeader>
             <CardTitle className="text-3xl font-bold text-primary mb-2">Quiz Completed!</CardTitle>
