@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { PlusCircle, Edit, Trash2, Languages, Filter, Search, Loader2, Star } from 'lucide-react'; // Added Star
+import { PlusCircle, Edit, Trash2, Languages, Filter, Search, Loader2, Star, CheckCircle, AlertTriangle } from 'lucide-react'; // Added CheckCircle, AlertTriangle
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -29,10 +29,12 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import type { Question } from '@/types/quiz';
-import type { UserProfile } from '@/types/user'; // Import UserProfile
+import type { UserProfile, SubscriptionPlan } from '@/types/user'; // Import UserProfile & SubscriptionPlan
 import { AdminHeader } from '@/components/admin/admin-header';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils'; // Import cn utility
+import { setUserValidationStatus, getUserProfile } from '@/lib/firebase/firestore'; // Import validation function
+import { Timestamp } from 'firebase/firestore'; // Import Timestamp
 
 // Dummy data for initial structure - replace with actual data fetching
 const dummyMCQs: Question[] = [
@@ -60,7 +62,6 @@ const dummyMCQs: Question[] = [
     options: { en: ['Guilty act', 'Guilty mind', 'Burden of proof', 'Standard'], ne: ['कार्य', 'मनसाय', 'भार', 'स्तर'] },
     correctAnswer: { en: 'The guilty mind', ne: 'दोषपूर्ण मनसाय' },
   },
-  // Add more dummy questions...
    {
     id: '4',
     category: 'Constitutional Law',
@@ -71,13 +72,28 @@ const dummyMCQs: Question[] = [
 ];
 
 // Placeholder: Dummy user data for admin view (replace with actual fetching later)
+// Ensure dummy data includes `validated` field
 const dummyUsers: UserProfile[] = [
-    // ... fetch actual user data including subscription later
+    // Will be replaced by actual fetch
 ];
+
+// Mock function to simulate fetching all users (replace with actual Firestore call)
+async function fetchAllUsers(): Promise<UserProfile[]> {
+     await new Promise(resolve => setTimeout(resolve, 1200)); // Simulate delay
+     // Replace with actual Firestore call to fetch all users
+     // Ensure fetched data conforms to UserProfile, including `validated` field
+     return [
+         { uid: 'user1', name: 'Alice Smith', email: 'alice@example.com', phone: '1234567890', role: 'user', subscription: 'premium', validated: true, createdAt: Timestamp.now() },
+         { uid: 'user2', name: 'Bob Johnson', email: 'bob@example.com', phone: '0987654321', role: 'user', subscription: 'basic', validated: false, createdAt: Timestamp.now() },
+         { uid: 'user3', name: 'Charlie Brown', email: 'charlie@example.com', phone: '1122334455', role: 'user', subscription: 'free', validated: true, createdAt: Timestamp.now() },
+         { uid: 'user4', name: 'Diana Prince', email: 'diana@example.com', phone: '5544332211', role: 'user', subscription: 'premium', validated: false, createdAt: Timestamp.now() },
+     ];
+}
+
 
 export default function ManageMCQsPage() {
   const [mcqs, setMcqs] = React.useState<Question[]>([]);
-  const [users, setUsers] = React.useState<UserProfile[]>(dummyUsers); // State for users
+  const [users, setUsers] = React.useState<UserProfile[]>([]); // State for users
   const [isLoadingMCQs, setIsLoadingMCQs] = React.useState(true);
   const [isLoadingUsers, setIsLoadingUsers] = React.useState(true); // Loading state for users
   const [error, setError] = React.useState<string | null>(null);
@@ -87,7 +103,6 @@ export default function ManageMCQsPage() {
   const { toast } = useToast();
 
   React.useEffect(() => {
-    // Simulate fetching MCQs
     const fetchMcqs = async () => {
       setIsLoadingMCQs(true);
       setError(null);
@@ -102,21 +117,15 @@ export default function ManageMCQsPage() {
       }
     };
 
-    // Simulate fetching Users (placeholder)
-    const fetchUsers = async () => {
+    const fetchUsersData = async () => {
          setIsLoadingUsers(true);
+         setError(null); // Clear previous errors
          try {
-             await new Promise((resolve) => setTimeout(resolve, 1200)); // Simulate delay
-             // Replace with actual API fetch for users
-             setUsers([
-                // Example dummy users with subscriptions
-                { uid: 'user1', name: 'Alice', email: 'alice@example.com', phone: '123', role: 'user', subscription: 'premium', createdAt: new Date() as any },
-                { uid: 'user2', name: 'Bob', email: 'bob@example.com', phone: '456', role: 'user', subscription: 'basic', createdAt: new Date() as any },
-                { uid: 'user3', name: 'Charlie', email: 'charlie@example.com', phone: '789', role: 'user', subscription: 'free', createdAt: new Date() as any },
-             ]);
+             const fetchedUsers = await fetchAllUsers(); // Use the new fetch function
+             setUsers(fetchedUsers);
          } catch (err) {
              console.error("Failed to fetch users:", err);
-             // Handle user fetch error if necessary
+             setError("Failed to load users. Please try again."); // Set error state for users
          } finally {
              setIsLoadingUsers(false);
          }
@@ -124,30 +133,18 @@ export default function ManageMCQsPage() {
 
 
     if (activeTab === 'mcqs') {
-        fetchMcqs();
+        if (mcqs.length === 0) fetchMcqs(); // Fetch only if not already loaded
+        else setIsLoadingMCQs(false); // Already loaded
     } else if (activeTab === 'users') {
-         fetchUsers(); // Fetch users when tab is active
+        if (users.length === 0) fetchUsersData(); // Fetch only if not already loaded
+         else setIsLoadingUsers(false); // Already loaded
     }
-  }, [activeTab]); // Refetch when tab changes
+  }, [activeTab, mcqs.length, users.length]); // Add mcqs.length and users.length dependencies
 
   const handleDeleteMCQ = async (id: string) => {
      console.log(`Deleting MCQ with ID: ${id}`);
-     try {
-       await new Promise(resolve => setTimeout(resolve, 500));
-        setMcqs(currentMcqs => currentMcqs.filter(mcq => mcq.id !== id));
-       toast({
-        title: "MCQ Deleted",
-        description: `Successfully deleted MCQ (ID: ${id}).`,
-      });
-       setSelectedMcqs(prev => {
-            const next = new Set(prev);
-            next.delete(id);
-            return next;
-       });
-     } catch (err) {
-         console.error("Failed to delete MCQ:", err);
-         toast({ variant: "destructive", title: "Deletion Failed", description: "Could not delete the MCQ." });
-     }
+     // Add actual delete logic here
+     toast({ title: "Action Not Implemented", description: "MCQ deletion backend not implemented yet." });
   };
 
   const handleDeleteSelectedMCQs = async () => {
@@ -157,23 +154,42 @@ export default function ManageMCQsPage() {
         return;
     }
     console.log(`Deleting selected MCQs: ${idsToDelete.join(', ')}`);
-     try {
-       await new Promise(resolve => setTimeout(resolve, 800));
-       setMcqs(currentMcqs => currentMcqs.filter(mcq => !selectedMcqs.has(mcq.id)));
-       setSelectedMcqs(new Set());
-       toast({ title: "MCQs Deleted", description: `Successfully deleted ${idsToDelete.length} selected MCQ(s).` });
-     } catch (err) {
-       console.error("Failed to delete selected MCQs:", err);
-       toast({ variant: "destructive", title: "Deletion Failed", description: "Could not delete the selected MCQs." });
-     }
+     // Add actual delete logic here
+     toast({ title: "Action Not Implemented", description: "Bulk MCQ deletion backend not implemented yet." });
   };
 
   // Placeholder for deleting users
   const handleDeleteUser = async (uid: string) => {
       console.log(`Deleting User with UID: ${uid}`);
-      toast({ title: "Action Not Implemented", description: "User deletion functionality is not yet available." });
       // Implement actual user deletion logic here (Firestore + Auth)
+      toast({ title: "Action Not Implemented", description: "User deletion functionality is not yet available." });
   };
+
+  // Handle toggling validation status
+  const handleToggleValidation = async (uid: string, currentStatus: boolean) => {
+       const newStatus = !currentStatus;
+       try {
+           await setUserValidationStatus(uid, newStatus);
+           // Update local state for immediate UI feedback
+           setUsers(prevUsers =>
+               prevUsers.map(user =>
+                   user.uid === uid ? { ...user, validated: newStatus } : user
+               )
+           );
+           toast({
+               title: "Validation Status Updated",
+               description: `User ${uid} validation set to ${newStatus ? 'Validated' : 'Not Validated'}.`,
+           });
+       } catch (error) {
+           console.error("Failed to update validation status:", error);
+           toast({
+               variant: "destructive",
+               title: "Update Failed",
+               description: "Could not update user validation status.",
+           });
+       }
+   };
+
 
   const handleSelectAll = (checked: boolean | 'indeterminate') => {
      if (checked === true) {
@@ -202,22 +218,38 @@ export default function ManageMCQsPage() {
   );
 
   const filteredUsers = users.filter(user =>
-     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     user.subscription?.toLowerCase().includes(searchTerm.toLowerCase())
+     (user.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+     (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+     (user.subscription?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+     (user.phone?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
    const isAllSelected = filteredMcqs.length > 0 && selectedMcqs.size === filteredMcqs.length;
    const isIndeterminate = selectedMcqs.size > 0 && selectedMcqs.size < filteredMcqs.length;
 
-   const getSubscriptionBadgeVariant = (plan?: string) => {
+   const getSubscriptionBadgeDetails = (plan?: SubscriptionPlan) => {
         switch (plan) {
-            case 'premium': return 'default';
-            case 'basic': return 'secondary';
-            case 'free': return 'outline';
-            default: return 'outline';
+            case 'premium': return { variant: 'default', colorClass: 'bg-yellow-100 text-yellow-800 border-yellow-300', icon: <Star className="mr-1 h-3 w-3 fill-current" /> }; // Gold
+            case 'basic': return { variant: 'secondary', colorClass: 'bg-green-100 text-green-800 border-green-300', icon: null }; // Green
+            case 'free': return { variant: 'outline', colorClass: 'bg-gray-100 text-gray-800 border-gray-300', icon: null }; // Gray
+            default: return { variant: 'outline', colorClass: 'bg-gray-100 text-gray-800 border-gray-300', icon: null };
         }
     };
+
+    const getValidationStatus = (validated: boolean, subscription?: SubscriptionPlan) => {
+        if (subscription === 'free') {
+            return <Badge variant="secondary" className="bg-transparent text-muted-foreground text-xs">N/A</Badge>;
+        }
+        return validated ? (
+             <Badge variant="default" className="bg-green-500 hover:bg-green-600 text-white text-xs">
+                <CheckCircle className="mr-1 h-3 w-3" /> Validated
+             </Badge>
+         ) : (
+             <Badge variant="destructive" className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs">
+                  <AlertTriangle className="mr-1 h-3 w-3" /> Pending
+              </Badge>
+         );
+     };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -258,7 +290,7 @@ export default function ManageMCQsPage() {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
              <Input
                 type="search"
-                placeholder={activeTab === 'mcqs' ? "Search questions..." : "Search users..."}
+                placeholder={activeTab === 'mcqs' ? "Search questions, category..." : "Search name, email, phone, plan..."}
                 className="pl-8 w-full"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -288,9 +320,10 @@ export default function ManageMCQsPage() {
                  </AlertDialogContent>
                </AlertDialog>
              )}
-              {/* <Button variant="outline" size="sm">
-                 <Filter className="mr-2 h-4 w-4" /> Filter
-               </Button> */}
+             {/* Filter Button Placeholder */}
+             {/* <Button variant="outline" size="sm" disabled>
+                <Filter className="mr-2 h-4 w-4" /> Filter
+              </Button> */}
              {activeTab === 'mcqs' && (
                  <Link href="/admin/mcqs/add" passHref>
                    <Button size="sm">
@@ -302,13 +335,20 @@ export default function ManageMCQsPage() {
             </div>
          </div>
 
+         {/* Display Error if any */}
+         {error && activeTab === 'mcqs' && !isLoadingMCQs && (
+             <div className="text-center py-10 text-destructive">{error}</div>
+         )}
+         {error && activeTab === 'users' && !isLoadingUsers && (
+             <div className="text-center py-10 text-destructive">{error}</div>
+         )}
+
+
          {/* Conditional Table Rendering */}
          {activeTab === 'mcqs' && (
              isLoadingMCQs ? (
                 <MCQTableSkeleton />
-             ) : error ? (
-                 <div className="text-center py-10 text-destructive">{error}</div>
-             ) : (
+             ) : !error && ( // Only render table if no error
                  <Card className="overflow-hidden border shadow-sm">
                      <Table>
                      <TableHeader>
@@ -318,7 +358,7 @@ export default function ManageMCQsPage() {
                                 checked={isAllSelected || isIndeterminate}
                                 onCheckedChange={handleSelectAll}
                                 aria-label="Select all rows"
-                                className={isIndeterminate ? 'bg-primary/50 border-primary' : ''}
+                                // className={isIndeterminate ? 'bg-primary/50 border-primary' : ''} // Indeterminate styling needs custom CSS or Radix state
                             />
                          </TableHead>
                         <TableHead className="min-w-[250px]">Question (English)</TableHead>
@@ -383,7 +423,7 @@ export default function ManageMCQsPage() {
                         ) : (
                          <TableRow>
                            <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                             No MCQs found matching your search criteria.
+                             {mcqs.length === 0 ? "No MCQs found." : "No MCQs found matching your search criteria."}
                            </TableCell>
                          </TableRow>
                         )}
@@ -396,68 +436,107 @@ export default function ManageMCQsPage() {
          {activeTab === 'users' && (
              isLoadingUsers ? (
                  <UserTableSkeleton />
-             ) : error ? (
-                 <div className="text-center py-10 text-destructive">{error}</div> // Reuse error display
-             ) : (
+             ) : !error && ( // Only render table if no error
                 <Card className="overflow-hidden border shadow-sm">
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Name</TableHead>
+                                <TableHead className="min-w-[150px]">Name</TableHead>
                                 <TableHead>Email</TableHead>
-                                <TableHead>Subscription</TableHead>
-                                <TableHead>Joined Date</TableHead>
-                                <TableHead className="text-right w-[100px]">Actions</TableHead>
+                                <TableHead>Phone</TableHead>
+                                <TableHead>Plan</TableHead>
+                                <TableHead>Status</TableHead> {/* Changed from Joined Date */}
+                                <TableHead className="text-right w-[150px]">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {filteredUsers.length > 0 ? (
-                                filteredUsers.map((user) => (
-                                    <TableRow key={user.uid}>
-                                        <TableCell className="font-medium">{user.name}</TableCell>
-                                        <TableCell>{user.email}</TableCell>
-                                        <TableCell>
-                                             <Badge variant={getSubscriptionBadgeVariant(user.subscription)} className="capitalize">
-                                                {user.subscription === 'premium' && <Star className="mr-1 h-3 w-3 fill-current" />}
-                                                {user.subscription || 'Free'}
-                                             </Badge>
-                                        </TableCell>
-                                        <TableCell>{user.createdAt ? new Date(user.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="flex gap-1 justify-end">
-                                                 {/* Add view/edit user actions later */}
-                                                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="View User" disabled>
-                                                     <Edit className="h-4 w-4" />
-                                                 </Button>
-                                                 <AlertDialog>
-                                                     <AlertDialogTrigger asChild>
-                                                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" aria-label="Delete User">
-                                                             <Trash2 className="h-4 w-4" />
-                                                         </Button>
-                                                     </AlertDialogTrigger>
-                                                     <AlertDialogContent>
-                                                         <AlertDialogHeader>
-                                                             <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
-                                                             <AlertDialogDescription>
-                                                                 Are you sure you want to delete user "{user.name}" ({user.email})? This action cannot be undone.
-                                                             </AlertDialogDescription>
-                                                         </AlertDialogHeader>
-                                                         <AlertDialogFooter>
-                                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                             <AlertDialogAction onClick={() => handleDeleteUser(user.uid)} className="bg-destructive hover:bg-destructive/90">
-                                                                 Delete User
-                                                             </AlertDialogAction>
-                                                         </AlertDialogFooter>
-                                                     </AlertDialogContent>
-                                                 </AlertDialog>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
+                                filteredUsers.map((user) => {
+                                    const planDetails = getSubscriptionBadgeDetails(user.subscription);
+                                    return (
+                                        <TableRow key={user.uid}>
+                                            <TableCell className="font-medium">{user.name || 'N/A'}</TableCell>
+                                            <TableCell>{user.email}</TableCell>
+                                             <TableCell>{user.phone || 'N/A'}</TableCell>
+                                            <TableCell>
+                                                 <Badge variant={planDetails.variant} className={cn("capitalize", planDetails.colorClass)}>
+                                                    {planDetails.icon}
+                                                    {user.subscription || 'Free'}
+                                                 </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                 {getValidationStatus(user.validated, user.subscription)}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex gap-1 justify-end items-center">
+                                                    {/* Toggle Validation Button */}
+                                                     {user.subscription !== 'free' && (
+                                                        <AlertDialog>
+                                                             <AlertDialogTrigger asChild>
+                                                                  <Button
+                                                                     variant="ghost"
+                                                                     size="icon"
+                                                                     className={cn("h-8 w-8", user.validated ? "text-green-600 hover:bg-green-100" : "text-yellow-600 hover:bg-yellow-100")}
+                                                                     aria-label={user.validated ? "Mark as Pending" : "Mark as Validated"}
+                                                                  >
+                                                                     {user.validated ? <CheckCircle className="h-4 w-4"/> : <AlertTriangle className="h-4 w-4"/>}
+                                                                  </Button>
+                                                             </AlertDialogTrigger>
+                                                              <AlertDialogContent>
+                                                                  <AlertDialogHeader>
+                                                                      <AlertDialogTitle>Confirm Status Change</AlertDialogTitle>
+                                                                      <AlertDialogDescription>
+                                                                           Are you sure you want to change the validation status for user "{user.name}" to
+                                                                           <strong className="ml-1">{user.validated ? 'Pending' : 'Validated'}</strong>?
+                                                                       </AlertDialogDescription>
+                                                                  </AlertDialogHeader>
+                                                                   <AlertDialogFooter>
+                                                                       <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                       <AlertDialogAction
+                                                                           onClick={() => handleToggleValidation(user.uid, user.validated)}
+                                                                           className={user.validated ? "bg-yellow-500 hover:bg-yellow-600" : "bg-green-500 hover:bg-green-600"}
+                                                                       >
+                                                                           {user.validated ? 'Set to Pending' : 'Set to Validated'}
+                                                                       </AlertDialogAction>
+                                                                   </AlertDialogFooter>
+                                                              </AlertDialogContent>
+                                                        </AlertDialog>
+                                                     )}
+                                                    {/* View/Edit User (Placeholder) */}
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="View/Edit User" disabled>
+                                                         <Edit className="h-4 w-4" />
+                                                     </Button>
+                                                     {/* Delete User */}
+                                                     <AlertDialog>
+                                                         <AlertDialogTrigger asChild>
+                                                             <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" aria-label="Delete User">
+                                                                 <Trash2 className="h-4 w-4" />
+                                                             </Button>
+                                                         </AlertDialogTrigger>
+                                                         <AlertDialogContent>
+                                                             <AlertDialogHeader>
+                                                                 <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
+                                                                 <AlertDialogDescription>
+                                                                     Are you sure you want to delete user "{user.name}" ({user.email})? This action cannot be undone.
+                                                                 </AlertDialogDescription>
+                                                             </AlertDialogHeader>
+                                                             <AlertDialogFooter>
+                                                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                 <AlertDialogAction onClick={() => handleDeleteUser(user.uid)} className="bg-destructive hover:bg-destructive/90">
+                                                                     Delete User
+                                                                 </AlertDialogAction>
+                                                             </AlertDialogFooter>
+                                                         </AlertDialogContent>
+                                                     </AlertDialog>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                                        No users found matching your search criteria.
+                                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                                        {users.length === 0 ? "No users found." : "No users found matching your search criteria."}
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -466,7 +545,6 @@ export default function ManageMCQsPage() {
                 </Card>
              )
          )}
-
 
          {/* Add Pagination component here later */}
        </main>
@@ -518,9 +596,10 @@ function UserTableSkeleton() {
                 <TableRow>
                     <TableHead><Skeleton className="h-4 w-24" /></TableHead>
                     <TableHead><Skeleton className="h-4 w-40" /></TableHead>
-                    <TableHead><Skeleton className="h-4 w-20" /></TableHead>
                     <TableHead><Skeleton className="h-4 w-24" /></TableHead>
-                    <TableHead className="text-right w-[100px]"><Skeleton className="h-4 w-16 ml-auto" /></TableHead>
+                    <TableHead><Skeleton className="h-4 w-20" /></TableHead>
+                    <TableHead><Skeleton className="h-4 w-20" /></TableHead> {/* Status column */}
+                    <TableHead className="text-right w-[150px]"><Skeleton className="h-4 w-16 ml-auto" /></TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -528,10 +607,12 @@ function UserTableSkeleton() {
                     <TableRow key={i}>
                         <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                         <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                         <TableCell><Skeleton className="h-6 w-16 rounded-full" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                        <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell> {/* Status skeleton */}
                         <TableCell className="text-right">
                             <div className="flex gap-1 justify-end">
+                                <Skeleton className="h-8 w-8 rounded-md" />
                                 <Skeleton className="h-8 w-8 rounded-md" />
                                 <Skeleton className="h-8 w-8 rounded-md" />
                             </div>

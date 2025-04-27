@@ -19,6 +19,7 @@ import { auth } from '@/lib/firebase/config';
 import { createUserWithEmailAndPassword, AuthError } from 'firebase/auth';
 import { createUserProfileDocument } from '@/lib/firebase/firestore'; // Import Firestore function
 import type { SubscriptionPlan } from '@/types/user'; // Import SubscriptionPlan type
+import { PublicNavbar } from '@/components/layout/public-navbar'; // Import PublicNavbar
 
 const phoneRegex = new RegExp(
   /^([+]?[\s0-9]+)?(\d{3}|[(]?[0-9]+[)])?([-]?[\s]?[0-9])+$/
@@ -58,7 +59,7 @@ function RegisterFormComponent() {
     } else {
       // Redirect if plan is missing or invalid
       toast({ variant: 'destructive', title: 'Invalid Plan', description: 'Please select a subscription plan first.' });
-      router.replace('/register/select-plan');
+      router.replace('/pricing'); // Redirect to pricing page
     }
   }, [searchParams, router, toast]);
 
@@ -100,25 +101,19 @@ function RegisterFormComponent() {
 
     try {
       // TODO: Handle profile picture upload to Firebase Storage here if needed
-      // For now, we'll just pass the file info or null
       let profilePictureUrl: string | null = null;
       if (data.profilePicture && data.profilePicture instanceof File) {
          console.log("Profile picture file selected:", data.profilePicture.name);
-         // In a real app:
-         // 1. Upload data.profilePicture to Firebase Storage
-         // 2. Get the download URL
-         // 3. Assign it to profilePictureUrl
-         // For this example, we'll skip the upload:
-         profilePictureUrl = null; // Placeholder
-         toast({ title: "Note", description: "Profile picture upload not implemented yet." });
+         // In a real app: Upload and get URL
+         profilePictureUrl = null; // Placeholder for now
+         // toast({ title: "Note", description: "Profile picture upload not implemented yet." });
       }
-
 
       // 1. Create user in Firebase Authentication
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
 
-      // 2. Create user profile document in Firestore including subscription plan
+      // 2. Create user profile document in Firestore
       await createUserProfileDocument(user, {
           name: data.name,
           phone: data.phone,
@@ -128,11 +123,18 @@ function RegisterFormComponent() {
 
       toast({
         title: 'Registration Successful',
-        description: 'Your account has been created. Redirecting to login...',
+        description: `Your account for the ${selectedPlan} plan has been created.`,
         action: <CheckCircle className="text-green-500" />,
       });
-      // Redirect to login page after a short delay
-      setTimeout(() => router.push('/login'), 1500);
+
+      // 3. Redirect based on plan
+      if (selectedPlan === 'free') {
+        // Redirect free users to login directly
+        setTimeout(() => router.push('/login'), 1500);
+      } else {
+        // Redirect paid users to payment page
+        setTimeout(() => router.push(`/payment?plan=${selectedPlan}`), 1500);
+      }
 
     } catch (err: unknown) {
       const authError = err as AuthError;
@@ -154,162 +156,166 @@ function RegisterFormComponent() {
       });
       setIsLoading(false);
     }
-    // No finally block needed as navigation happens on success
   };
 
    if (!selectedPlan) {
       // Show loading or placeholder while checking plan or redirecting
       return (
-          <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background to-muted/50 p-4">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="flex flex-col min-h-screen">
+             <PublicNavbar />
+             <div className="flex flex-1 items-center justify-center bg-gradient-to-br from-background to-muted/50 p-4">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+             </div>
           </div>
       );
    }
 
-
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background to-muted/50 p-4 py-10">
-      <Card className="w-full max-w-md shadow-xl border">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-primary flex items-center justify-center gap-2">
-             <UserPlus size={24} /> Create Your Account
-          </CardTitle>
-          <CardDescription>
-             You've selected the <span className="font-semibold capitalize">{selectedPlan}</span> plan. Fill in your details below.
-          </CardDescription>
-        </CardHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-0">
-            <CardContent className="space-y-4 pb-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter your full name" {...field} disabled={isLoading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email Address</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="Enter your email" {...field} disabled={isLoading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone Number</FormLabel>
-                    <FormControl>
-                      <Input type="tel" placeholder="Enter your phone number" {...field} disabled={isLoading} />
-                    </FormControl>
-                     <FormMessage />
-                  </FormItem>
-                )}
-              />
-               {/* Profile Picture Input */}
-               <FormField
+    <div className="flex flex-col min-h-screen">
+       <PublicNavbar />
+       <main className="flex flex-1 items-center justify-center bg-gradient-to-br from-background to-muted/50 p-4 py-10">
+          <Card className="w-full max-w-md shadow-xl border">
+            <CardHeader className="text-center">
+              <CardTitle className="text-2xl font-bold text-primary flex items-center justify-center gap-2">
+                 <UserPlus size={24} /> Create Your Account
+              </CardTitle>
+              <CardDescription>
+                 You've selected the <span className="font-semibold capitalize">{selectedPlan}</span> plan. Fill in your details below.
+              </CardDescription>
+            </CardHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-0">
+                <CardContent className="space-y-4 pb-4">
+                  <FormField
                     control={form.control}
-                    name="profilePicture"
-                    render={({ field }) => ( // Don't destructure value/onChange for file input
-                    <FormItem>
-                        <FormLabel>Profile Picture (Optional)</FormLabel>
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Full Name</FormLabel>
                         <FormControl>
-                           <div className="flex items-center gap-4">
-                             <Label
-                               htmlFor="profile-picture-input"
-                               className="flex-1 cursor-pointer rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                             >
-                               <ImageIcon className="inline-block mr-2 h-4 w-4" />
-                               {previewUrl ? 'Change picture' : 'Choose a picture'}
-                             </Label>
-                             <Input
-                                id="profile-picture-input"
-                                type="file"
-                                accept="image/*" // Accept only image files
-                                onChange={handleFileChange} // Use custom handler
-                                className="sr-only" // Hide the default input visually
-                                disabled={isLoading}
-                              />
-                              {previewUrl && (
-                                  <img src={previewUrl} alt="Preview" className="h-10 w-10 rounded-full object-cover border" />
-                              )}
-                           </div>
+                          <Input placeholder="Enter your full name" {...field} disabled={isLoading} />
                         </FormControl>
                         <FormMessage />
-                    </FormItem>
+                      </FormItem>
                     )}
-                />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="Create a password (min. 6 characters)" {...field} disabled={isLoading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="confirmPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Confirm Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="Confirm your password" {...field} disabled={isLoading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {error && (
-                <p className="text-sm text-destructive text-center pt-2">{error}</p>
-              )}
-            </CardContent>
-            <CardFooter className="flex flex-col gap-3 pt-4">
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating Account...
-                  </>
-                ) : (
-                  'Register'
-                )}
-              </Button>
-               <p className="text-xs text-center text-muted-foreground">
-                 Already have an account?{' '}
-                 <Link href="/login" className="underline hover:text-primary font-medium">
-                    Login here
-                  </Link>
-               </p>
-               <p className="text-xs text-center text-muted-foreground">
-                  Want to change plan?{' '}
-                  <Link href="/register/select-plan" className="underline hover:text-primary font-medium">
-                     Go back
-                   </Link>
-                </p>
-            </CardFooter>
-          </form>
-        </Form>
-      </Card>
+                  />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email Address</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="Enter your email" {...field} disabled={isLoading} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone Number</FormLabel>
+                        <FormControl>
+                          <Input type="tel" placeholder="Enter your phone number" {...field} disabled={isLoading} />
+                        </FormControl>
+                         <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                   {/* Profile Picture Input */}
+                   <FormField
+                        control={form.control}
+                        name="profilePicture"
+                        render={({ field }) => ( // Don't destructure value/onChange for file input
+                        <FormItem>
+                            <FormLabel>Profile Picture (Optional)</FormLabel>
+                            <FormControl>
+                               <div className="flex items-center gap-4">
+                                 <Label
+                                   htmlFor="profile-picture-input"
+                                   className="flex-1 cursor-pointer rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                 >
+                                   <ImageIcon className="inline-block mr-2 h-4 w-4" />
+                                   {previewUrl ? 'Change picture' : 'Choose a picture'}
+                                 </Label>
+                                 <Input
+                                    id="profile-picture-input"
+                                    type="file"
+                                    accept="image/*" // Accept only image files
+                                    onChange={handleFileChange} // Use custom handler
+                                    className="sr-only" // Hide the default input visually
+                                    disabled={isLoading}
+                                  />
+                                  {previewUrl && (
+                                      <img src={previewUrl} alt="Preview" className="h-10 w-10 rounded-full object-cover border" />
+                                  )}
+                               </div>
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="Create a password (min. 6 characters)" {...field} disabled={isLoading} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Confirm Password</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="Confirm your password" {...field} disabled={isLoading} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {error && (
+                    <p className="text-sm text-destructive text-center pt-2">{error}</p>
+                  )}
+                </CardContent>
+                <CardFooter className="flex flex-col gap-3 pt-4">
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating Account...
+                      </>
+                    ) : (
+                      'Register & Proceed'
+                    )}
+                  </Button>
+                   <p className="text-xs text-center text-muted-foreground">
+                     Already have an account?{' '}
+                     <Link href="/login" className="underline hover:text-primary font-medium">
+                        Login here
+                      </Link>
+                   </p>
+                   <p className="text-xs text-center text-muted-foreground">
+                      Want to change plan?{' '}
+                      <Link href="/pricing" className="underline hover:text-primary font-medium">
+                         Go back to Pricing
+                       </Link>
+                    </p>
+                </CardFooter>
+              </form>
+            </Form>
+          </Card>
+       </main>
     </div>
   );
 }
@@ -317,7 +323,12 @@ function RegisterFormComponent() {
 // Wrap the component with Suspense for useSearchParams
 export default function RegisterPage() {
     return (
-        <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+        <Suspense fallback={
+            <div className="flex flex-col min-h-screen">
+               <PublicNavbar />
+               <div className="flex flex-1 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+            </div>
+        }>
             <RegisterFormComponent />
         </Suspense>
     );

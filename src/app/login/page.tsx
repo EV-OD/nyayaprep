@@ -18,6 +18,7 @@ import { Loader2, LogIn } from 'lucide-react';
 import { auth } from '@/lib/firebase/config';
 import { signInWithEmailAndPassword, AuthError } from 'firebase/auth';
 import { getUserProfile } from '@/lib/firebase/firestore'; // Import Firestore function to check role
+import { PublicNavbar } from '@/components/layout/public-navbar'; // Import PublicNavbar
 
 const formSchema = z.object({
   email: z.string().email('Please enter a valid email address.'),
@@ -105,73 +106,75 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background to-muted/50 p-4">
-      <Card className="w-full max-w-sm shadow-xl border">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-primary flex items-center justify-center gap-2">
-            <LogIn size={24} /> Login to NyayaPrep
-          </CardTitle>
-          <CardDescription>Access your account or the admin panel.</CardDescription>
-        </CardHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-0">
-            <CardContent className="space-y-4 pb-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="Enter your email" {...field} disabled={isLoading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="Enter password" {...field} disabled={isLoading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {/* Display the error message */}
-              {error && (
-                <p className="text-sm font-medium text-destructive text-center pt-2">{error}</p>
-              )}
-            </CardContent>
-            <CardFooter className="flex flex-col gap-3 pt-4">
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Logging In...
-                  </>
-                ) : (
-                  'Login'
-                )}
-              </Button>
-              <p className="text-xs text-center text-muted-foreground">
-                 Don't have an account?{' '}
-                 <Link href="/register" className="underline hover:text-primary font-medium">
-                   Register here
-                 </Link>
-               </p>
-               {/* Link to admin login is removed as it's the same page now */}
-               {/* <p className="text-xs text-center text-muted-foreground mt-2">
-                 Admin? <Link href="/admin" className="underline hover:text-primary">Admin Login</Link>
-               </p> */}
-            </CardFooter>
-          </form>
-        </Form>
-      </Card>
+    <div className="flex flex-col min-h-screen">
+       <PublicNavbar />
+       <main className="flex flex-1 items-center justify-center bg-gradient-to-br from-background to-muted/50 p-4">
+          <Card className="w-full max-w-sm shadow-xl border">
+            <CardHeader className="text-center">
+              <CardTitle className="text-2xl font-bold text-primary flex items-center justify-center gap-2">
+                <LogIn size={24} /> Login to NyayaPrep
+              </CardTitle>
+              <CardDescription>Access your account or the admin panel.</CardDescription>
+            </CardHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-0">
+                <CardContent className="space-y-4 pb-4">
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="Enter your email" {...field} disabled={isLoading} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="Enter password" {...field} disabled={isLoading} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {/* Display the error message */}
+                  {error && (
+                    <p className="text-sm font-medium text-destructive text-center pt-2">{error}</p>
+                  )}
+                </CardContent>
+                <CardFooter className="flex flex-col gap-3 pt-4">
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Logging In...
+                      </>
+                    ) : (
+                      'Login'
+                    )}
+                  </Button>
+                  <p className="text-xs text-center text-muted-foreground">
+                     Don't have an account?{' '}
+                     <Link href="/pricing" className="underline hover:text-primary font-medium">
+                       Register here
+                     </Link>
+                   </p>
+                </CardFooter>
+              </form>
+            </Form>
+          </Card>
+       </main>
+        <footer className="py-4 text-center text-muted-foreground text-sm bg-background border-t">
+          NyayaPrep &copy; {new Date().getFullYear()}
+        </footer>
     </div>
   );
 }
