@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -49,7 +50,7 @@ import {
 import { Timestamp } from 'firebase/firestore'; // Keep if date formatting is used
 import { format } from 'date-fns'; // Keep if date formatting is used
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { CSVUploadDialog } from './csv-upload-dialog.tsx'; // Import the new component
+import { CSVUploadDialog } from '@/components/admin/csv-upload-dialog'; // Corrected import path
 
 
 export default function ManageMCQsPage() {
@@ -62,23 +63,24 @@ export default function ManageMCQsPage() {
 
   const { toast } = useToast();
 
-  React.useEffect(() => {
-    const fetchMcqs = async () => {
-      setIsLoadingMCQs(true);
-      setError(null);
-      try {
-        const fetchedMcqs = await getAllMcqs(true); // Fetch from Firestore, order by date
-        setMcqs(fetchedMcqs);
-      } catch (err) {
-         console.error("Failed to fetch MCQs:", err);
-         setError("Failed to load MCQs. Please try again.");
-         toast({ variant: "destructive", title: "Loading Error", description: "Could not load MCQs from the database."});
-      } finally {
-        setIsLoadingMCQs(false);
-      }
-    };
-    fetchMcqs();
+  const fetchMcqs = React.useCallback(async () => {
+    setIsLoadingMCQs(true);
+    setError(null);
+    try {
+      const fetchedMcqs = await getAllMcqs(true); // Fetch from Firestore, order by date
+      setMcqs(fetchedMcqs);
+    } catch (err) {
+       console.error("Failed to fetch MCQs:", err);
+       setError("Failed to load MCQs. Please try again.");
+       toast({ variant: "destructive", title: "Loading Error", description: "Could not load MCQs from the database."});
+    } finally {
+      setIsLoadingMCQs(false);
+    }
   }, [toast]); // Add toast to dependencies
+
+  React.useEffect(() => {
+    fetchMcqs();
+  }, [fetchMcqs]); // Fetch on mount and when fetchMcqs changes
 
   // Handle deleting a single MCQ
   const handleDeleteMCQ = async (id: string) => {
@@ -361,4 +363,5 @@ function MCQTableSkeleton() {
         </Card>
     );
 }
+
 
