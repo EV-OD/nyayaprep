@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from 'react';
@@ -31,10 +30,18 @@ import {
 } from "@/components/ui/accordion"; // Import Accordion
 import { auth } from '@/lib/firebase/config';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { getUserProfile, getUserQuizResults, updateAskTeacherUsage, saveTeacherQuestion, getUserTeacherQuestions, clearUserNotifications } from '@/lib/firebase/firestore'; // Added saveTeacherQuestion, getUserTeacherQuestions, clearUserNotifications
+import {
+    getUserProfile,
+    getUserQuizResults,
+    updateAskTeacherUsage,
+    saveTeacherQuestion,
+    getUserTeacherQuestions,
+    clearUserNotifications,
+    handleSubscriptionExpiry // Import expiry handler
+} from '@/lib/firebase/firestore'; // Added saveTeacherQuestion, getUserTeacherQuestions, clearUserNotifications
 import type { UserProfile, QuizResult, SubscriptionPlan, TeacherQuestion } from '@/types/user'; // Import TeacherQuestion
-import { formatDistanceToNow, isToday, format } from 'date-fns'; // Added format
-import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video, History, BarChart2, X, ExternalLink, MessageSquareQuote, HelpCircle, Clock, Check, Bell } from 'lucide-react'; // Added Bell icon
+import { formatDistanceToNow, isToday, format, differenceInDays } from 'date-fns'; // Added format, differenceInDays
+import { FileText, User as UserIcon, Target, Star, Zap, AlertTriangle, MessageSquare, CheckCircle, Lock, Newspaper, Video, History, BarChart2, X, ExternalLink, MessageSquareQuote, HelpCircle, Clock, Check, Bell, CalendarClock, RefreshCw } from 'lucide-react'; // Added Bell, CalendarClock, RefreshCw icon
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { AskTeacherDialog } from '@/components/user/ask-teacher-dialog'; // Import AskTeacherDialog
@@ -102,6 +109,7 @@ export default function UserDashboardPage() {
   const [isAskTeacherDialogOpen, setIsAskTeacherDialogOpen] = useState(false);
   const [canAskTeacher, setCanAskTeacher] = useState(false); // State to control if user can ask based on limit
   const [askTeacherUsage, setAskTeacherUsage] = useState(0); // Current usage count for the day
+  const [isValidated, setIsValidated] = useState(false); // Local state for validation status after check
   const router = useRouter();
   const { toast } = useToast(); // Initialize toast
   const myQuestionsRef = useRef<HTMLDivElement>(null); // Ref for scrolling
@@ -115,37 +123,53 @@ export default function UserDashboardPage() {
         setLoadingResults(true);
         setLoadingTeacherQuestions(true); // Start loading teacher questions
         try {
+          // --- Check for subscription expiry first ---
+          const expired = await handleSubscriptionExpiry(currentUser.uid);
+          if (expired) {
+              toast({ variant: "destructive", title: "Subscription Expired", description: "Your access has been updated. Please renew your subscription." });
+          }
+
+          // --- Fetch potentially updated profile ---
           const userProfile = await getUserProfile(currentUser.uid);
           setProfile(userProfile);
+
           if (userProfile) {
+             setIsValidated(userProfile.validated); // Set local validation state
              setUnreadNotifications(userProfile.unreadNotifications || 0); // Set notification count
-            // Fetch results and teacher questions in parallel
-            const [quizResults, fetchedTeacherQuestions] = await Promise.all([
-                // Fetch results only if Premium and validated
-                (userProfile.subscription === 'premium' && userProfile.validated) ? getUserQuizResults(currentUser.uid, 5) : Promise.resolve([]),
-                // Fetch teacher questions if Basic or Premium
-                (userProfile.subscription === 'basic' || userProfile.subscription === 'premium') ? getUserTeacherQuestions(currentUser.uid) : Promise.resolve([])
-            ]);
-            setResults(quizResults);
-            setTeacherQuestions(fetchedTeacherQuestions); // Set fetched questions
 
-            // --- Ask Teacher Usage Check ---
-            const todayUsage = userProfile.lastAskTeacherDate && isToday(userProfile.lastAskTeacherDate.toDate())
-              ? userProfile.askTeacherCount || 0
-              : 0;
+             // --- Check validation status for features ---
+             const featuresEnabled = userProfile.validated;
 
-            const limit = subscriptionDetails[userProfile.subscription]?.askLimit ?? 0;
+             // Fetch results and teacher questions based on current plan and validation status
+             const [quizResults, fetchedTeacherQuestions] = await Promise.all([
+                 // Fetch results only if Premium and VALIDATED
+                 (userProfile.subscription === 'premium' && featuresEnabled) ? getUserQuizResults(currentUser.uid, 5) : Promise.resolve([]),
+                 // Fetch teacher questions if Basic/Premium and VALIDATED
+                 ((userProfile.subscription === 'basic' || userProfile.subscription === 'premium') && featuresEnabled) ? getUserTeacherQuestions(currentUser.uid) : Promise.resolve([])
+             ]);
+             setResults(quizResults);
+             setTeacherQuestions(fetchedTeacherQuestions); // Set fetched questions
 
-            setAskTeacherUsage(todayUsage);
-            // User can ask if they are Basic/Premium, validated, and under the limit
-            setCanAskTeacher(todayUsage < limit && (userProfile.subscription === 'basic' || userProfile.subscription === 'premium') && userProfile.validated);
+             // --- Ask Teacher Usage Check ---
+             const todayUsage = userProfile.lastAskTeacherDate && isToday(userProfile.lastAskTeacherDate.toDate())
+               ? userProfile.askTeacherCount || 0
+               : 0;
+
+             const limit = subscriptionDetails[userProfile.subscription]?.askLimit ?? 0;
+
+             setAskTeacherUsage(todayUsage);
+             // User can ask if they are Basic/Premium, VALIDATED, and under the limit
+             setCanAskTeacher(todayUsage < limit && (userProfile.subscription === 'basic' || userProfile.subscription === 'premium') && featuresEnabled);
 
           } else {
-            setResults([]);
-            setTeacherQuestions([]); // Clear if no profile
-            setCanAskTeacher(false);
-             setUnreadNotifications(0); // Reset count
-            console.warn("User profile not found for UID:", currentUser.uid);
+             // Handle case where profile doesn't exist after login/expiry check
+             setResults([]);
+             setTeacherQuestions([]);
+             setCanAskTeacher(false);
+             setUnreadNotifications(0);
+             setIsValidated(false);
+             console.warn("User profile not found for UID:", currentUser.uid);
+             // Optionally redirect to login or show an error
           }
         } catch (error) {
             console.error('Failed to load dashboard data:', error);
@@ -153,8 +177,10 @@ export default function UserDashboardPage() {
              const firebaseError = error as Error;
              if (firebaseError.message.includes('Firestore Query Requires Index')) {
                  console.warn('Dashboard data loading delayed due to Firestore index creation/update.');
-                 // Optionally show a different kind of feedback to the user
-             } else {
+             } else if (firebaseError.message.includes('expired')) {
+                 // Already handled above with a toast
+             }
+              else {
                  toast({ variant: 'destructive', title: 'Error', description: 'Failed to load some dashboard data.' });
              }
         } finally {
@@ -163,11 +189,13 @@ export default function UserDashboardPage() {
           setLoadingTeacherQuestions(false); // Finish loading teacher questions
         }
       } else {
+        // User logged out
         setProfile(null);
         setResults([]);
         setTeacherQuestions([]); // Clear on logout
         setUnreadNotifications(0); // Reset count
         setCanAskTeacher(false);
+        setIsValidated(false);
         setLoadingProfile(false);
         setLoadingResults(false);
         setLoadingTeacherQuestions(false); // Finish loading
@@ -178,7 +206,7 @@ export default function UserDashboardPage() {
 
   // Function to handle asking a question
   const handleAskQuestionSubmit = async (questionText: string) => {
-      if (!profile || !user || !canAskTeacher) return; // Guard clause including user object
+      if (!profile || !user || !canAskTeacher || !isValidated) return; // Guard clause including user object and validation
 
        const newCount = askTeacherUsage + 1;
        try {
@@ -191,7 +219,7 @@ export default function UserDashboardPage() {
            // 3. Update local state for immediate UI feedback
            setAskTeacherUsage(newCount);
            const limit = subscriptionDetails[profile.subscription]?.askLimit || 0;
-           setCanAskTeacher(newCount < limit && profile.validated); // Re-check canAskTeacher state
+           setCanAskTeacher(newCount < limit && isValidated); // Re-check canAskTeacher state
 
             // 4. Refetch teacher questions to show the new one (optimistic UI update could be added too)
             setLoadingTeacherQuestions(true);
@@ -206,8 +234,6 @@ export default function UserDashboardPage() {
        } catch (error) {
             console.error("Failed to submit question or update usage:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to submit your question.' }); // Error toast
-            // Optionally show an error toast to the user
-            // The UI state won't update if the Firestore update fails
        }
    };
 
@@ -245,13 +271,55 @@ export default function UserDashboardPage() {
         }
     };
 
-     const showValidationAlert = profile && profile.subscription !== 'free' && !profile.validated;
+     // Determine alert to show based on validation status and expiry
+     const getValidationAlert = () => {
+          if (!profile || profile.subscription === 'free') return null; // No alert for free plan
+
+          const now = new Date();
+          const hasExpired = profile.expiryDate && now > profile.expiryDate.toDate();
+
+          if (hasExpired) {
+              return (
+                 <Alert variant="destructive" className="border-red-500 bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700 [&>svg]:text-red-600 dark:[&>svg]:text-red-400">
+                     <AlertTriangle className="h-4 w-4" />
+                     <AlertTitle className="font-semibold">Subscription Expired</AlertTitle>
+                     <AlertDescription>
+                         Your {profile.subscription} plan has expired. Please renew to regain access to features.
+                         <Button variant="link" size="sm" className="p-0 h-auto ml-2 text-xs text-red-700 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200" onClick={handleUpgradeClick}>
+                             <RefreshCw className="mr-1 h-3 w-3"/> Renew Now
+                         </Button>
+                     </AlertDescription>
+                 </Alert>
+              );
+          } else if (!isValidated) {
+               // Not expired but pending validation
+              return (
+                   <Alert variant="destructive" className="border-yellow-500 bg-yellow-50 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700 [&>svg]:text-yellow-600 dark:[&>svg]:text-yellow-400">
+                     <AlertTriangle className="h-4 w-4" />
+                     <AlertTitle className="font-semibold">Account Pending Validation</AlertTitle>
+                     <AlertDescription>
+                       Your <span className="font-medium">{profile.subscription}</span> plan payment needs verification. Please send your payment screenshot to our WhatsApp:
+                        <strong className="ml-1">{WHATSAPP_NUMBER}</strong>.
+                       <a href={`https://wa.me/${WHATSAPP_NUMBER.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="ml-2 inline-block">
+                           <Button variant="link" size="sm" className="p-0 h-auto text-xs text-yellow-700 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-200">
+                               <MessageSquare className="mr-1 h-3 w-3"/> Send on WhatsApp
+                           </Button>
+                       </a>
+                     </AlertDescription>
+                   </Alert>
+               );
+          }
+          return null; // Validated and not expired
+     };
+
      const currentPlanDetails = profile?.subscription ? subscriptionDetails[profile.subscription] : subscriptionDetails.free;
 
-     const contentLocked = !profile || !(profile.subscription === 'premium' && profile.validated);
-     const analyticsLocked = !profile || !(profile.subscription === 'premium' && profile.validated);
+     // Centralize locking logic based on validation
+     const featuresLocked = !isValidated && profile?.subscription !== 'free';
+     const contentLocked = profile?.subscription !== 'premium' || featuresLocked;
+     const analyticsLocked = profile?.subscription !== 'premium' || featuresLocked;
+     const askTeacherLocked = profile?.subscription === 'free' || featuresLocked; // Lock if free OR if paid but not validated
 
-     const askTeacherLocked = !profile || profile.subscription === 'free'; // Lock for free users
      const askLimit = profile ? currentPlanDetails.askLimit : 0;
      const askLimitReached = askTeacherUsage >= askLimit;
 
@@ -334,6 +402,19 @@ export default function UserDashboardPage() {
          }
      };
 
+    // Calculate remaining days
+    const getRemainingDays = () => {
+        if (profile?.expiryDate) {
+            const now = new Date();
+            const expiry = profile.expiryDate.toDate();
+            if (now > expiry) return 0; // Expired
+            return differenceInDays(expiry, now);
+        }
+        return null; // No expiry date set
+    };
+
+    const remainingDays = getRemainingDays();
+
 
   return (
     <div className="p-6 md:p-10 space-y-8"> {/* Added space-y */}
@@ -353,22 +434,9 @@ export default function UserDashboardPage() {
           </div>
        </div>
 
-      {/* Validation Alert */}
-      {showValidationAlert && (
-         <Alert variant="destructive" className="border-yellow-500 bg-yellow-50 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700 [&>svg]:text-yellow-600 dark:[&>svg]:text-yellow-400">
-           <AlertTriangle className="h-4 w-4" />
-           <AlertTitle className="font-semibold">Account Pending Validation</AlertTitle>
-           <AlertDescription>
-             Your <span className="font-medium">{profile?.subscription}</span> plan payment needs verification. Please send your payment screenshot to our WhatsApp:
-              <strong className="ml-1">{WHATSAPP_NUMBER}</strong>.
-             <a href={`https://wa.me/${WHATSAPP_NUMBER.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="ml-2 inline-block">
-                 <Button variant="link" size="sm" className="p-0 h-auto text-xs text-yellow-700 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-200">
-                     <MessageSquare className="mr-1 h-3 w-3"/> Send on WhatsApp
-                 </Button>
-             </a>
-           </AlertDescription>
-         </Alert>
-      )}
+      {/* Validation / Expiry Alert */}
+       {getValidationAlert()}
+
 
        {/* First Row: Welcome, Score, Start Quiz */}
        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -397,7 +465,7 @@ export default function UserDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Average Score Card - Locked for Free/Basic */}
+        {/* Average Score Card - Locked for Free/Basic or invalid */}
          <Card className="lg:col-span-1 relative overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Average Score</CardTitle>
@@ -443,10 +511,10 @@ export default function UserDashboardPage() {
                      {profile?.subscription === 'free'
                        ? 'Take one of your 2 daily quizzes (10 questions).'
                        : profile?.subscription === 'basic'
-                         ? profile?.validated
+                         ? isValidated // Use local validated state
                             ? 'Take one of your 5 daily quizzes (10 questions).'
                             : 'Activate your Basic plan to start quizzes.'
-                         : profile?.validated // Premium
+                         : isValidated // Premium
                            ? 'Take a new quiz to test your knowledge.'
                            : 'Activate your Premium plan to start quizzes.'
                      }
@@ -456,11 +524,14 @@ export default function UserDashboardPage() {
                         variant="secondary"
                         size="lg"
                         className="w-full"
-                        disabled={showValidationAlert} // Disable quiz if validation needed
+                        disabled={featuresLocked} // Disable quiz if features are locked (paid and not validated)
                     >
                         Start New Quiz
                     </Button>
                   </Link>
+                  {featuresLocked && profile?.subscription !== 'free' && (
+                     <p className="text-xs text-primary-foreground/70 mt-2 text-center">Account validation pending or expired.</p>
+                  )}
             </CardContent>
         </Card>
       </div>
@@ -480,23 +551,39 @@ export default function UserDashboardPage() {
                  ) : (
                     <>
                       <div className={cn("p-4 rounded-lg border mb-4", currentPlanDetails.colorClass)}>
-                          <div className="flex justify-between items-center mb-3">
+                          <div className="flex justify-between items-center mb-1">
                               <h3 className="text-lg font-semibold">{currentPlanDetails.name} Plan</h3>
                               <Badge variant={getSubscriptionBadgeVariant(profile?.subscription)}>
                                   {profile?.subscription === 'premium' && <Star className="mr-1 h-3 w-3 fill-current" />}
                                   <span className="capitalize">{profile?.subscription || 'Free'}</span>
                               </Badge>
                           </div>
-                         <p className="text-sm font-medium mb-1">{currentPlanDetails.price}</p>
+                          <p className="text-sm font-medium mb-1">{currentPlanDetails.price}</p>
                           {profile?.subscription !== 'free' && (
                              <div className="text-xs mb-3 flex items-center gap-1">
-                                 {profile?.validated ? (
-                                     <><CheckCircle size={14} className="text-green-600 dark:text-green-400"/> Validated</>
+                                 {isValidated ? ( // Use local validation state
+                                     <><CheckCircle size={14} className="text-green-600 dark:text-green-400"/> Active</>
                                  ) : (
-                                      <><AlertTriangle size={14} className="text-yellow-600 dark:text-yellow-400"/> Pending Validation</>
+                                      <><AlertTriangle size={14} className="text-yellow-600 dark:text-yellow-400"/> Pending Validation / Expired</>
                                  )}
                              </div>
                           )}
+                          {/* Display Expiry Date and Remaining Days */}
+                          {profile?.subscription !== 'free' && profile.expiryDate && isValidated && (
+                              <div className="text-xs mt-2 mb-3 space-y-0.5">
+                                 <div className="flex items-center gap-1 text-muted-foreground">
+                                     <CalendarClock size={12} />
+                                     <span>Expires on: {format(profile.expiryDate.toDate(), 'PPP')}</span>
+                                 </div>
+                                 {remainingDays !== null && remainingDays >= 0 && (
+                                     <div className="flex items-center gap-1 text-muted-foreground">
+                                         <Clock size={12} />
+                                         <span>{remainingDays} day{remainingDays !== 1 ? 's' : ''} remaining</span>
+                                     </div>
+                                 )}
+                              </div>
+                          )}
+
                          <ul className="space-y-1.5 text-xs mt-3">
                               {currentPlanDetails.features.map((feature, index) => (
                                  <li key={index} className="flex items-center gap-2">
@@ -517,7 +604,7 @@ export default function UserDashboardPage() {
                             className="w-full"
                             onClick={handleUpgradeClick} // Use handler function
                          >
-                             Upgrade Plan
+                             {profile?.subscription === 'free' ? 'Upgrade Plan' : 'Renew / Upgrade'}
                              <Zap className="ml-1.5 h-4 w-4" />
                          </Button>
                        )}
@@ -526,7 +613,7 @@ export default function UserDashboardPage() {
              </CardContent>
          </Card>
 
-         {/* Recent Quiz Results Table Card - Locked for Free/Basic */}
+         {/* Recent Quiz Results Table Card - Locked for Free/Basic or invalid */}
          <Card className="lg:col-span-2 relative overflow-hidden">
            <CardHeader>
              <CardTitle className="flex items-center gap-2"><History size={20} /> Recent Activity</CardTitle>
@@ -595,7 +682,7 @@ export default function UserDashboardPage() {
                          <p className="text-center font-semibold mb-4">Requires validated Premium plan.</p>
                           <UpgradeAlertDialog
                              triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Now</Button>}
-                         />
+                          />
                      </div>
                  )}
                  {/* Actual content */}
@@ -669,6 +756,7 @@ export default function UserDashboardPage() {
                           <UpgradeAlertDialog
                              triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Plan</Button>}
                           />
+                          {featuresLocked && profile?.subscription !== 'free' && <p className="text-xs text-muted-foreground mt-2">Account validation pending or expired.</p>}
                      </div>
                  )}
                  {/* Content visible to Basic/Premium users */}
@@ -685,11 +773,10 @@ export default function UserDashboardPage() {
                              }
                          />
                      ) : (
-                          <Button size="lg" onClick={() => setIsAskTeacherDialogOpen(true)} disabled={showValidationAlert || askTeacherLocked}>
+                          <Button size="lg" onClick={() => setIsAskTeacherDialogOpen(true)} disabled={askTeacherLocked}>
                               Ask Question
                           </Button>
                      )}
-                     {showValidationAlert && profile?.subscription !== 'free' && <p className="text-xs text-destructive mt-2">Please validate your account to use this feature.</p>}
                  </div>
               </CardContent>
            </Card>
@@ -708,6 +795,7 @@ export default function UserDashboardPage() {
                            <UpgradeAlertDialog
                               triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Plan</Button>}
                           />
+                           {featuresLocked && profile?.subscription !== 'free' && <p className="text-xs text-muted-foreground mt-2">Account validation pending or expired.</p>}
                       </div>
                    )}
                    <div className={cn("space-y-3", askTeacherLocked ? "opacity-30 pointer-events-none" : "")}>

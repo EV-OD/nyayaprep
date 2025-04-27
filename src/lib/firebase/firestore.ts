@@ -33,6 +33,7 @@ const mcqsCollection = collection(db, 'mcqs'); // Collection for MCQs
  * Initializes the 'validated' field based on the subscription plan.
  * Initializes 'askTeacherCount' and 'lastAskTeacherDate'.
  * Initializes 'unreadNotifications' and 'lastNotificationCheck'.
+ * Initializes 'expiryDate' to null.
  * @param user Firebase User object.
  * @param additionalData Additional data like name, phone, subscription, and profile picture URL.
  */
@@ -57,6 +58,7 @@ export const createUserProfileDocument = async (
     subscription: additionalData.subscription,
     profilePicture: additionalData.profilePicture || null,
     validated: additionalData.subscription === 'free', // Free plans are auto-validated
+    expiryDate: null, // Initialize expiryDate
     askTeacherCount: 0,
     lastAskTeacherDate: Timestamp.fromMillis(0), // Initialize with epoch
     unreadNotifications: 0,
@@ -88,7 +90,7 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
       const data = docSnap.data();
       // Validate data structure before creating UserProfile object
       const profile: UserProfile = {
-          uid: data.uid,
+          uid: data.uid || docSnap.id,
           email: data.email || '',
           name: data.name || 'Unknown User',
           phone: data.phone || '',
@@ -97,6 +99,7 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
           profilePicture: data.profilePicture || null,
           createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(), // Handle potential missing createdAt
           validated: data.validated === true, // Ensure boolean check
+          expiryDate: data.expiryDate instanceof Timestamp ? data.expiryDate : null, // Fetch expiryDate
           askTeacherCount: data.askTeacherCount || 0,
           lastAskTeacherDate: data.lastAskTeacherDate instanceof Timestamp ? data.lastAskTeacherDate : Timestamp.fromMillis(0), // Default if missing
           unreadNotifications: data.unreadNotifications || 0, // Default to 0 if missing
@@ -111,6 +114,37 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
     console.error('Error getting user profile document:', error);
     throw error;
   }
+};
+
+/**
+ * Checks if a user's subscription has expired and updates their status if needed.
+ * @param uid The user's unique ID.
+ * @returns Promise<boolean> True if the subscription was found to be expired and handled, false otherwise.
+ */
+export const handleSubscriptionExpiry = async (uid: string): Promise<boolean> => {
+    if (!uid) return false;
+    const userProfile = await getUserProfile(uid);
+
+    if (userProfile && userProfile.subscription !== 'free' && userProfile.expiryDate) {
+        const now = new Date();
+        const expiry = userProfile.expiryDate.toDate();
+
+        if (now > expiry && userProfile.validated) {
+             console.log(`Subscription for user ${uid} expired on ${expiry}. Updating status.`);
+             try {
+                 // Set validated to false and optionally downgrade plan
+                 await setUserValidationStatus(uid, false, null); // Set expiryDate to null when invalidating due to expiry
+                 // Optionally, set subscription to 'free'
+                 // await updateDoc(doc(usersCollection, uid), { subscription: 'free' });
+                 console.log(`User ${uid} status updated to non-validated due to expiry.`);
+                 return true; // Indicate expiry was handled
+             } catch (error) {
+                 console.error(`Failed to handle expiry for user ${uid}:`, error);
+                 return false; // Indicate error during handling
+             }
+        }
+    }
+    return false; // No expiry needed or already handled/invalid
 };
 
 /**
@@ -180,17 +214,17 @@ export const getUserQuizResults = async (userId: string, count?: number): Promis
     console.error('Error getting user quiz results: ', firebaseError.message);
     // Check for specific index error
     if (firebaseError.message.includes('requires an index')) {
-      const isBuilding = firebaseError.message.includes('currently building');
-      const indexCreationMessage =
-        `Firestore Query Requires Index: The query to fetch user quiz results needs a composite index:\n` +
-        `Collection: 'quizResults', Fields: 'userId' (Asc), 'completedAt' (Desc).\n`+
-        `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`;
-      console.warn(indexCreationMessage);
-      // Propagate a more informative error, potentially customizing based on whether it's building
-      const userFriendlyMessage = isBuilding
-          ? "The database index needed to fetch quiz results is currently being built. Please try again in a few minutes."
-          : "A required database index (quizResults: userId Asc, completedAt Desc) is missing. Please contact support or create it in the Firebase console.";
-      throw new Error(userFriendlyMessage);
+        const isBuilding = firebaseError.message.includes('currently building');
+        const indexCreationMessage =
+          `Firestore Query Requires Index: The query to fetch user quiz results needs a composite index:\n` +
+          `Collection: 'quizResults', Fields: 'userId' (Asc), 'completedAt' (Desc).\n`+
+          `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`;
+        console.warn(indexCreationMessage);
+        // Propagate a more informative error, potentially customizing based on whether it's building
+        const userFriendlyMessage = isBuilding
+            ? "The database index needed to fetch quiz results is currently being built. Please try again in a few minutes."
+            : "A required database index (quizResults: userId Asc, completedAt Desc) is missing. Please contact support or create it in the Firebase console.";
+        throw new Error(userFriendlyMessage);
     }
     // Return empty array on error to prevent breaking the UI if not throwing
     // return [];
@@ -240,6 +274,7 @@ export const getAllUsers = async (): Promise<UserProfile[]> => {
         profilePicture: data.profilePicture || null,
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(),
         validated: data.validated === true,
+        expiryDate: data.expiryDate instanceof Timestamp ? data.expiryDate : null, // Fetch expiryDate
         askTeacherCount: data.askTeacherCount || 0,
         lastAskTeacherDate: data.lastAskTeacherDate instanceof Timestamp ? data.lastAskTeacherDate : Timestamp.fromMillis(0),
         unreadNotifications: data.unreadNotifications || 0,
@@ -256,20 +291,22 @@ export const getAllUsers = async (): Promise<UserProfile[]> => {
 
 
 /**
- * Updates the validation status for a user.
+ * Updates the validation status and optionally the expiry date for a user.
  * @param uid The user's unique ID.
  * @param isValidated The new validation status.
+ * @param expiryDate The new expiry date (Timestamp or null). If null, it will be set to null.
  */
-export const setUserValidationStatus = async (uid: string, isValidated: boolean): Promise<void> => {
+export const setUserValidationStatus = async (uid: string, isValidated: boolean, expiryDate: Timestamp | null): Promise<void> => {
     if (!uid) throw new Error("User UID is required.");
     const userRef = doc(usersCollection, uid);
     try {
         await updateDoc(userRef, {
             validated: isValidated,
+            expiryDate: expiryDate, // Update expiry date
         });
-        console.log(`User ${uid} validation status updated to ${isValidated}`);
+        console.log(`User ${uid} validation status updated to ${isValidated}, expiry set to ${expiryDate ? expiryDate.toDate() : 'null'}`);
     } catch (error) {
-        console.error(`Error updating validation status for user ${uid}:`, error);
+        console.error(`Error updating validation status/expiry for user ${uid}:`, error);
         throw error;
     }
 };
