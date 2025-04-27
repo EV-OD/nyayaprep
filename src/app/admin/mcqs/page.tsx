@@ -48,6 +48,7 @@ import { setUserValidationStatus, getUserProfile, getPendingTeacherQuestions, an
 import { Timestamp } from 'firebase/firestore'; // Import Timestamp
 import { format } from 'date-fns'; // Import format
 import { auth } from '@/lib/firebase/config'; // Import auth to get admin UID
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'; // Import Card components
 
 // Dummy data for initial structure - replace with actual data fetching
 const dummyMCQs: Question[] = [
@@ -701,14 +702,7 @@ export default function ManageMCQsPage() {
                                                  </div>
                                                  {/* Direct Answer Input */}
                                                   <div className="mt-2">
-                                                     <Textarea
-                                                        id={`answer-${q.id}`}
-                                                        placeholder="Write your answer here..."
-                                                        rows={3}
-                                                        className="text-sm mb-2"
-                                                        // Store temporary answer locally or manage state globally if needed
-                                                        // For simplicity, we'll handle it in the dialog/submit function
-                                                      />
+                                                     {/* Use Dialog for consistency and better UX */}
                                                      <Button
                                                          size="sm"
                                                          variant="default"
@@ -884,8 +878,7 @@ function TeacherQuestionsSkeleton() {
                                     <Skeleton className="h-5 w-16 rounded-full" />
                                 </div>
                                 <div className="mt-2 space-y-2">
-                                    <Skeleton className="h-16 w-full" />
-                                     <Skeleton className="h-8 w-24 rounded-md" />
+                                    <Skeleton className="h-8 w-24 rounded-md" />
                                 </div>
                              </div>
                          ))}
@@ -895,5 +888,3 @@ function TeacherQuestionsSkeleton() {
         </div>
     );
 }
-
-```

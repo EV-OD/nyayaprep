@@ -121,8 +121,10 @@ export default function UserDashboardPage() {
              setUnreadNotifications(userProfile.unreadNotifications || 0); // Set notification count
             // Fetch results and teacher questions in parallel
             const [quizResults, fetchedTeacherQuestions] = await Promise.all([
-                getUserQuizResults(currentUser.uid, 5),
-                getUserTeacherQuestions(currentUser.uid) // Fetch user's asked questions
+                // Fetch results only if Premium and validated
+                (userProfile.subscription === 'premium' && userProfile.validated) ? getUserQuizResults(currentUser.uid, 5) : Promise.resolve([]),
+                // Fetch teacher questions if Basic or Premium
+                (userProfile.subscription === 'basic' || userProfile.subscription === 'premium') ? getUserTeacherQuestions(currentUser.uid) : Promise.resolve([])
             ]);
             setResults(quizResults);
             setTeacherQuestions(fetchedTeacherQuestions); // Set fetched questions
@@ -135,7 +137,8 @@ export default function UserDashboardPage() {
             const limit = subscriptionDetails[userProfile.subscription]?.askLimit ?? 0;
 
             setAskTeacherUsage(todayUsage);
-            setCanAskTeacher(todayUsage < limit && userProfile.subscription !== 'free' && userProfile.validated);
+            // User can ask if they are Basic/Premium, validated, and under the limit
+            setCanAskTeacher(todayUsage < limit && (userProfile.subscription === 'basic' || userProfile.subscription === 'premium') && userProfile.validated);
 
           } else {
             setResults([]);
@@ -145,8 +148,15 @@ export default function UserDashboardPage() {
             console.warn("User profile not found for UID:", currentUser.uid);
           }
         } catch (error) {
-          console.error('Failed to load dashboard data:', error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to load dashboard data.' }); // Show toast on error
+            console.error('Failed to load dashboard data:', error);
+            // Specific handling for index errors based on console warnings from firestore.ts
+             const firebaseError = error as Error;
+             if (firebaseError.message.includes('Firestore Query Requires Index')) {
+                 console.warn('Dashboard data loading delayed due to Firestore index creation/update.');
+                 // Optionally show a different kind of feedback to the user
+             } else {
+                 toast({ variant: 'destructive', title: 'Error', description: 'Failed to load some dashboard data.' });
+             }
         } finally {
           setLoadingProfile(false);
           setLoadingResults(false);
@@ -658,7 +668,7 @@ export default function UserDashboardPage() {
                          <p className="text-center font-semibold mb-4">Available for Basic & Premium plans.</p>
                           <UpgradeAlertDialog
                              triggerButton={<Button variant="default"><Zap className="mr-2 h-4 w-4" /> Upgrade Plan</Button>}
-                         />
+                          />
                      </div>
                  )}
                  {/* Content visible to Basic/Premium users */}
@@ -711,16 +721,19 @@ export default function UserDashboardPage() {
                                     key={q.id}
                                      // Highlight answered questions with unread notifications
                                      className={cn(
-                                        q.status === 'answered' && (profile?.lastNotificationCheck ? q.answeredAt && q.answeredAt > profile.lastNotificationCheck : true) ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800' : ''
+                                         'border-b', // Keep base border
+                                         q.status === 'answered' && (profile?.lastNotificationCheck ? q.answeredAt && q.answeredAt > profile.lastNotificationCheck : true)
+                                             ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800 rounded-md mb-1' // Highlight style + spacing
+                                             : ''
                                      )}
                                  >
-                                   <AccordionTrigger className="text-sm hover:no-underline">
-                                       <div className="flex justify-between items-center w-full pr-2">
+                                   <AccordionTrigger className="text-sm hover:no-underline px-4 py-3"> {/* Adjusted padding */}
+                                       <div className="flex justify-between items-center w-full">
                                           <span className="truncate flex-1 mr-2">{q.questionText}</span>
                                           {getStatusBadge(q.status)}
                                        </div>
                                    </AccordionTrigger>
-                                   <AccordionContent className="text-sm text-muted-foreground px-2 pt-2 pb-4 space-y-2">
+                                   <AccordionContent className="text-sm text-muted-foreground px-4 pt-2 pb-4 space-y-2"> {/* Adjusted padding */}
                                        <p><strong>Asked:</strong> {q.askedAt ? format(q.askedAt.toDate(), 'PPP p') : 'N/A'}</p>
                                        {q.status === 'answered' && q.answerText ? (
                                            <>
@@ -809,5 +822,3 @@ function MyQuestionsSkeleton() {
         </div>
     );
 }
-
-```
