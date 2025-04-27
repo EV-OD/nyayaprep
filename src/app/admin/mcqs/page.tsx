@@ -3,9 +3,10 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { PlusCircle, Edit, Trash2, Languages, Filter, Search, Loader2, Star, CheckCircle, AlertTriangle } from 'lucide-react'; // Added CheckCircle, AlertTriangle
+import { PlusCircle, Edit, Trash2, Languages, Filter, Search, Loader2, Star, CheckCircle, AlertTriangle, HelpCircle, Send, Clock, Check } from 'lucide-react'; // Added new icons
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea'; // Added Textarea for answers
 import {
   Table,
   TableBody,
@@ -25,16 +26,27 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from '@/components/ui/dialog'; // Import Dialog components
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import type { Question } from '@/types/quiz';
-import type { UserProfile, SubscriptionPlan } from '@/types/user'; // Import UserProfile & SubscriptionPlan
+import type { UserProfile, SubscriptionPlan, TeacherQuestion } from '@/types/user'; // Import TeacherQuestion
 import { AdminHeader } from '@/components/admin/admin-header';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils'; // Import cn utility
-import { setUserValidationStatus, getUserProfile } from '@/lib/firebase/firestore'; // Import validation function
+import { setUserValidationStatus, getUserProfile, getPendingTeacherQuestions, answerTeacherQuestion } from '@/lib/firebase/firestore'; // Import teacher question functions
 import { Timestamp } from 'firebase/firestore'; // Import Timestamp
+import { format } from 'date-fns'; // Import format
+import { auth } from '@/lib/firebase/config'; // Import auth to get admin UID
 
 // Dummy data for initial structure - replace with actual data fetching
 const dummyMCQs: Question[] = [
@@ -72,7 +84,6 @@ const dummyMCQs: Question[] = [
 ];
 
 // Placeholder: Dummy user data for admin view (replace with actual fetching later)
-// Ensure dummy data includes `validated` field
 const dummyUsers: UserProfile[] = [
     // Will be replaced by actual fetch
 ];
@@ -80,8 +91,6 @@ const dummyUsers: UserProfile[] = [
 // Mock function to simulate fetching all users (replace with actual Firestore call)
 async function fetchAllUsers(): Promise<UserProfile[]> {
      await new Promise(resolve => setTimeout(resolve, 1200)); // Simulate delay
-     // Replace with actual Firestore call to fetch all users
-     // Ensure fetched data conforms to UserProfile, including `validated` field
      return [
          { uid: 'user1', name: 'Alice Smith', email: 'alice@example.com', phone: '1234567890', role: 'user', subscription: 'premium', validated: true, createdAt: Timestamp.now() },
          { uid: 'user2', name: 'Bob Johnson', email: 'bob@example.com', phone: '0987654321', role: 'user', subscription: 'basic', validated: false, createdAt: Timestamp.now() },
@@ -93,14 +102,31 @@ async function fetchAllUsers(): Promise<UserProfile[]> {
 
 export default function ManageMCQsPage() {
   const [mcqs, setMcqs] = React.useState<Question[]>([]);
-  const [users, setUsers] = React.useState<UserProfile[]>([]); // State for users
+  const [users, setUsers] = React.useState<UserProfile[]>([]);
+  const [teacherQuestions, setTeacherQuestions] = React.useState<TeacherQuestion[]>([]); // State for pending questions
   const [isLoadingMCQs, setIsLoadingMCQs] = React.useState(true);
-  const [isLoadingUsers, setIsLoadingUsers] = React.useState(true); // Loading state for users
+  const [isLoadingUsers, setIsLoadingUsers] = React.useState(true);
+  const [isLoadingTeacherQuestions, setIsLoadingTeacherQuestions] = React.useState(true); // Loading state for teacher questions
   const [error, setError] = React.useState<string | null>(null);
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedMcqs, setSelectedMcqs] = React.useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = React.useState<'mcqs' | 'users'>('mcqs'); // State for active tab
+  const [activeTab, setActiveTab] = React.useState<'mcqs' | 'users' | 'teacherQuestions'>('mcqs'); // Added 'teacherQuestions' tab
+  const [currentAdminUid, setCurrentAdminUid] = React.useState<string | null>(null); // State for admin UID
+  const [answerDialogOpen, setAnswerDialogOpen] = React.useState(false);
+  const [selectedQuestionToAnswer, setSelectedQuestionToAnswer] = React.useState<TeacherQuestion | null>(null);
+  const [answerText, setAnswerText] = React.useState('');
+  const [isSubmittingAnswer, setIsSubmittingAnswer] = React.useState(false);
+
   const { toast } = useToast();
+
+    // Get current admin user ID on mount
+    React.useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+            setCurrentAdminUid(user ? user.uid : null);
+        });
+        return () => unsubscribe();
+    }, []);
+
 
   React.useEffect(() => {
     const fetchMcqs = async () => {
@@ -131,19 +157,35 @@ export default function ManageMCQsPage() {
          }
      };
 
+     const fetchTeacherQuestionsData = async () => {
+         setIsLoadingTeacherQuestions(true);
+         setError(null);
+         try {
+             const fetchedQuestions = await getPendingTeacherQuestions();
+             setTeacherQuestions(fetchedQuestions);
+         } catch (err) {
+             console.error("Failed to fetch teacher questions:", err);
+             setError("Failed to load pending questions. Please try again.");
+         } finally {
+             setIsLoadingTeacherQuestions(false);
+         }
+     };
+
 
     if (activeTab === 'mcqs') {
-        if (mcqs.length === 0) fetchMcqs(); // Fetch only if not already loaded
-        else setIsLoadingMCQs(false); // Already loaded
+        if (mcqs.length === 0) fetchMcqs();
+        else setIsLoadingMCQs(false);
     } else if (activeTab === 'users') {
-        if (users.length === 0) fetchUsersData(); // Fetch only if not already loaded
-         else setIsLoadingUsers(false); // Already loaded
+        if (users.length === 0) fetchUsersData();
+         else setIsLoadingUsers(false);
+    } else if (activeTab === 'teacherQuestions') {
+        // Fetch teacher questions regardless of current length to get updates
+        fetchTeacherQuestionsData();
     }
-  }, [activeTab, mcqs.length, users.length]); // Add mcqs.length and users.length dependencies
+  }, [activeTab]); // Removed length dependencies to allow refetching
 
   const handleDeleteMCQ = async (id: string) => {
      console.log(`Deleting MCQ with ID: ${id}`);
-     // Add actual delete logic here
      toast({ title: "Action Not Implemented", description: "MCQ deletion backend not implemented yet." });
   };
 
@@ -154,23 +196,18 @@ export default function ManageMCQsPage() {
         return;
     }
     console.log(`Deleting selected MCQs: ${idsToDelete.join(', ')}`);
-     // Add actual delete logic here
      toast({ title: "Action Not Implemented", description: "Bulk MCQ deletion backend not implemented yet." });
   };
 
-  // Placeholder for deleting users
   const handleDeleteUser = async (uid: string) => {
       console.log(`Deleting User with UID: ${uid}`);
-      // Implement actual user deletion logic here (Firestore + Auth)
       toast({ title: "Action Not Implemented", description: "User deletion functionality is not yet available." });
   };
 
-  // Handle toggling validation status
   const handleToggleValidation = async (uid: string, currentStatus: boolean) => {
        const newStatus = !currentStatus;
        try {
            await setUserValidationStatus(uid, newStatus);
-           // Update local state for immediate UI feedback
            setUsers(prevUsers =>
                prevUsers.map(user =>
                    user.uid === uid ? { ...user, validated: newStatus } : user
@@ -189,6 +226,34 @@ export default function ManageMCQsPage() {
            });
        }
    };
+
+    const handleOpenAnswerDialog = (question: TeacherQuestion) => {
+        setSelectedQuestionToAnswer(question);
+        setAnswerText(''); // Clear previous answer
+        setAnswerDialogOpen(true);
+    };
+
+    const handleAnswerSubmit = async () => {
+        if (!selectedQuestionToAnswer || !answerText.trim() || !currentAdminUid) {
+            toast({ variant: "destructive", title: "Error", description: "Missing question, answer, or admin ID." });
+            return;
+        }
+        setIsSubmittingAnswer(true);
+        try {
+            await answerTeacherQuestion(selectedQuestionToAnswer.id!, answerText, currentAdminUid);
+            toast({ title: "Answer Submitted", description: `Answer provided for question ID ${selectedQuestionToAnswer.id}.` });
+
+            // Remove the answered question from the local state
+            setTeacherQuestions(prev => prev.filter(q => q.id !== selectedQuestionToAnswer.id));
+
+            setAnswerDialogOpen(false); // Close the dialog
+        } catch (error) {
+            console.error("Failed to submit answer:", error);
+            toast({ variant: "destructive", title: "Submission Failed", description: "Could not submit the answer." });
+        } finally {
+            setIsSubmittingAnswer(false);
+        }
+    };
 
 
   const handleSelectAll = (checked: boolean | 'indeterminate') => {
@@ -224,6 +289,12 @@ export default function ManageMCQsPage() {
      (user.phone?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
+  const filteredTeacherQuestions = teacherQuestions.filter(q =>
+     q.questionText.toLowerCase().includes(searchTerm.toLowerCase()) ||
+     (q.userName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+     (q.userEmail?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+  );
+
    const isAllSelected = filteredMcqs.length > 0 && selectedMcqs.size === filteredMcqs.length;
    const isIndeterminate = selectedMcqs.size > 0 && selectedMcqs.size < filteredMcqs.length;
 
@@ -251,13 +322,26 @@ export default function ManageMCQsPage() {
          );
      };
 
+      const getStatusBadge = (status: TeacherQuestion['status']) => {
+         switch (status) {
+             case 'pending':
+                 return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300"><Clock size={12} className="mr-1"/> Pending</Badge>;
+             case 'answered': // Should not appear in this table, but good practice
+                 return <Badge variant="default" className="bg-green-100 text-green-800 border-green-300"><Check size={12} className="mr-1"/> Answered</Badge>;
+             case 'rejected': // Should not appear in this table
+                 return <Badge variant="destructive"><X size={12} className="mr-1"/> Rejected</Badge>;
+             default:
+                 return <Badge variant="secondary">Unknown</Badge>;
+         }
+     };
+
   return (
     <div className="flex flex-col min-h-screen">
       <AdminHeader title="Manage Content & Users" />
        <main className="flex-1 p-6 md:p-10 bg-muted/30">
          {/* Tabs */}
          <div className="mb-6 border-b">
-             <nav className="-mb-px flex space-x-6" aria-label="Tabs">
+             <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
                  <button
                      onClick={() => setActiveTab('mcqs')}
                      className={cn(
@@ -280,6 +364,17 @@ export default function ManageMCQsPage() {
                  >
                      Manage Users
                  </button>
+                  <button
+                     onClick={() => setActiveTab('teacherQuestions')}
+                     className={cn(
+                         'whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm',
+                         activeTab === 'teacherQuestions'
+                             ? 'border-primary text-primary'
+                             : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+                     )}
+                 >
+                     Teacher Questions ({isLoadingTeacherQuestions ? '...' : filteredTeacherQuestions.length})
+                 </button>
              </nav>
          </div>
 
@@ -290,7 +385,11 @@ export default function ManageMCQsPage() {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
              <Input
                 type="search"
-                placeholder={activeTab === 'mcqs' ? "Search questions, category..." : "Search name, email, phone, plan..."}
+                placeholder={
+                    activeTab === 'mcqs' ? "Search questions, category..." :
+                    activeTab === 'users' ? "Search name, email, phone, plan..." :
+                    "Search questions, user..."
+                }
                 className="pl-8 w-full"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -320,10 +419,6 @@ export default function ManageMCQsPage() {
                  </AlertDialogContent>
                </AlertDialog>
              )}
-             {/* Filter Button Placeholder */}
-             {/* <Button variant="outline" size="sm" disabled>
-                <Filter className="mr-2 h-4 w-4" /> Filter
-              </Button> */}
              {activeTab === 'mcqs' && (
                  <Link href="/admin/mcqs/add" passHref>
                    <Button size="sm">
@@ -331,7 +426,6 @@ export default function ManageMCQsPage() {
                    </Button>
                  </Link>
              )}
-             {/* Add button for adding users later if needed */}
             </div>
          </div>
 
@@ -342,13 +436,14 @@ export default function ManageMCQsPage() {
          {error && activeTab === 'users' && !isLoadingUsers && (
              <div className="text-center py-10 text-destructive">{error}</div>
          )}
+          {error && activeTab === 'teacherQuestions' && !isLoadingTeacherQuestions && (
+             <div className="text-center py-10 text-destructive">{error}</div>
+         )}
 
 
          {/* Conditional Table Rendering */}
          {activeTab === 'mcqs' && (
-             isLoadingMCQs ? (
-                <MCQTableSkeleton />
-             ) : !error && ( // Only render table if no error
+             isLoadingMCQs ? <MCQTableSkeleton /> : !error && (
                  <Card className="overflow-hidden border shadow-sm">
                      <Table>
                      <TableHeader>
@@ -358,7 +453,6 @@ export default function ManageMCQsPage() {
                                 checked={isAllSelected || isIndeterminate}
                                 onCheckedChange={handleSelectAll}
                                 aria-label="Select all rows"
-                                // className={isIndeterminate ? 'bg-primary/50 border-primary' : ''} // Indeterminate styling needs custom CSS or Radix state
                             />
                          </TableHead>
                         <TableHead className="min-w-[250px]">Question (English)</TableHead>
@@ -434,9 +528,7 @@ export default function ManageMCQsPage() {
          )}
 
          {activeTab === 'users' && (
-             isLoadingUsers ? (
-                 <UserTableSkeleton />
-             ) : !error && ( // Only render table if no error
+             isLoadingUsers ? <UserTableSkeleton /> : !error && (
                 <Card className="overflow-hidden border shadow-sm">
                     <Table>
                         <TableHeader>
@@ -445,7 +537,7 @@ export default function ManageMCQsPage() {
                                 <TableHead>Email</TableHead>
                                 <TableHead>Phone</TableHead>
                                 <TableHead>Plan</TableHead>
-                                <TableHead>Status</TableHead> {/* Changed from Joined Date */}
+                                <TableHead>Status</TableHead>
                                 <TableHead className="text-right w-[150px]">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -469,7 +561,6 @@ export default function ManageMCQsPage() {
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex gap-1 justify-end items-center">
-                                                    {/* Toggle Validation Button */}
                                                      {user.subscription !== 'free' && (
                                                         <AlertDialog>
                                                              <AlertDialogTrigger asChild>
@@ -502,11 +593,9 @@ export default function ManageMCQsPage() {
                                                               </AlertDialogContent>
                                                         </AlertDialog>
                                                      )}
-                                                    {/* View/Edit User (Placeholder) */}
                                                     <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="View/Edit User" disabled>
                                                          <Edit className="h-4 w-4" />
                                                      </Button>
-                                                     {/* Delete User */}
                                                      <AlertDialog>
                                                          <AlertDialogTrigger asChild>
                                                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" aria-label="Delete User">
@@ -546,7 +635,104 @@ export default function ManageMCQsPage() {
              )
          )}
 
-         {/* Add Pagination component here later */}
+          {activeTab === 'teacherQuestions' && (
+             isLoadingTeacherQuestions ? <TeacherQuestionsSkeleton /> : !error && (
+                <Card className="overflow-hidden border shadow-sm">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="min-w-[200px]">Question</TableHead>
+                                <TableHead>Asked By</TableHead>
+                                <TableHead>Date Asked</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right w-[100px]">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredTeacherQuestions.length > 0 ? (
+                                filteredTeacherQuestions.map((q) => (
+                                    <TableRow key={q.id}>
+                                        <TableCell className="font-medium">
+                                             <span title={q.questionText} className="line-clamp-2">
+                                               {q.questionText}
+                                             </span>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="text-sm">{q.userName || 'N/A'}</div>
+                                             <div className="text-xs text-muted-foreground">{q.userEmail || 'N/A'}</div>
+                                        </TableCell>
+                                        <TableCell>
+                                             {q.askedAt ? format(q.askedAt.toDate(), 'PPp') : 'N/A'}
+                                        </TableCell>
+                                        <TableCell>{getStatusBadge(q.status)}</TableCell>
+                                        <TableCell className="text-right">
+                                             <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleOpenAnswerDialog(q)}
+                                            >
+                                                <Send className="mr-1 h-3.5 w-3.5" /> Answer
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                                         {teacherQuestions.length === 0 ? "No pending questions." : "No questions found matching your search criteria."}
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </Card>
+             )
+         )}
+
+         {/* Answer Dialog */}
+         <Dialog open={answerDialogOpen} onOpenChange={setAnswerDialogOpen}>
+           <DialogContent className="sm:max-w-[600px]">
+             <DialogHeader>
+               <DialogTitle>Answer Question</DialogTitle>
+               <DialogDescription>
+                  Provide an answer for the question below. The user will be notified.
+               </DialogDescription>
+             </DialogHeader>
+             <div className="py-4 space-y-4">
+                <div className="text-sm p-3 border rounded-md bg-muted/50">
+                  <strong>Question:</strong> {selectedQuestionToAnswer?.questionText}
+                  <p className="text-xs text-muted-foreground mt-1">
+                     Asked by: {selectedQuestionToAnswer?.userName} ({selectedQuestionToAnswer?.userEmail})
+                     on {selectedQuestionToAnswer?.askedAt ? format(selectedQuestionToAnswer.askedAt.toDate(), 'PPp') : 'N/A'}
+                  </p>
+                </div>
+                <Textarea
+                    placeholder="Type your answer here..."
+                    rows={6}
+                    value={answerText}
+                    onChange={(e) => setAnswerText(e.target.value)}
+                    disabled={isSubmittingAnswer}
+                />
+             </div>
+             <DialogFooter>
+               <DialogClose asChild>
+                 <Button type="button" variant="outline" disabled={isSubmittingAnswer}>
+                   Cancel
+                 </Button>
+               </DialogClose>
+               <Button
+                 type="button"
+                 onClick={handleAnswerSubmit}
+                 disabled={isSubmittingAnswer || !answerText.trim()}
+                 className="bg-primary hover:bg-primary/90"
+               >
+                 {isSubmittingAnswer ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                 {isSubmittingAnswer ? 'Submitting...' : 'Submit Answer'}
+               </Button>
+             </DialogFooter>
+           </DialogContent>
+         </Dialog>
+
        </main>
     </div>
   );
@@ -616,6 +802,40 @@ function UserTableSkeleton() {
                                 <Skeleton className="h-8 w-8 rounded-md" />
                                 <Skeleton className="h-8 w-8 rounded-md" />
                             </div>
+                        </TableCell>
+                    </TableRow>
+                ))}
+            </TableBody>
+        </Table>
+        </Card>
+    );
+}
+
+function TeacherQuestionsSkeleton() {
+    return (
+         <Card className="overflow-hidden border shadow-sm">
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead><Skeleton className="h-4 w-1/2" /></TableHead>
+                    <TableHead><Skeleton className="h-4 w-1/4" /></TableHead>
+                    <TableHead><Skeleton className="h-4 w-1/6" /></TableHead>
+                    <TableHead><Skeleton className="h-4 w-1/6" /></TableHead>
+                    <TableHead className="text-right w-[100px]"><Skeleton className="h-4 w-16 ml-auto" /></TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {[...Array(5)].map((_, i) => (
+                    <TableRow key={i}>
+                        <TableCell><Skeleton className="h-4 w-full" /></TableCell>
+                        <TableCell>
+                             <Skeleton className="h-4 w-3/4 mb-1" />
+                             <Skeleton className="h-3 w-1/2" />
+                        </TableCell>
+                         <TableCell><Skeleton className="h-4 w-full" /></TableCell>
+                         <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                        <TableCell className="text-right">
+                           <Skeleton className="h-8 w-20 rounded-md ml-auto" />
                         </TableCell>
                     </TableRow>
                 ))}

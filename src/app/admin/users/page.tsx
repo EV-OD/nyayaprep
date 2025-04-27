@@ -18,13 +18,12 @@ export default function ManageUsersPage() {
                     <CardHeader>
                         <CardTitle>User Management</CardTitle>
                         <CardDescription>
-                            View and manage registered users and their subscription levels.
+                            View and manage registered users, their subscription levels, and validation status.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <p className="text-muted-foreground">
-                            User management features (table, search, actions) will be implemented here.
-                            You can currently view users via the "Manage Content & Users" page's 'Users' tab.
+                            User management table and actions are displayed on the "Manage Content & Users" page under the 'Users' tab. This page serves as a placeholder route.
                         </p>
                         {/* Placeholder for User Table Component */}
                         {/* <UserTable data={users} isLoading={isLoading} /> */}

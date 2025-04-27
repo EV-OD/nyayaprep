@@ -14,7 +14,6 @@ export interface UserProfile {
   subscription: SubscriptionPlan;
   profilePicture?: string | null;
   validated: boolean;
-  // Add fields for 'Ask Teacher' feature tracking
   askTeacherCount?: number; // Number of questions asked today
   lastAskTeacherDate?: Timestamp; // Date when the last question was asked
 }
@@ -27,4 +26,20 @@ export interface QuizResult {
   percentage: number;
   answers: Answer[];
   completedAt: Timestamp;
+}
+
+// Interface for the 'Ask a Teacher' feature
+export interface TeacherQuestion {
+    id?: string; // Document ID from Firestore
+    userId: string; // UID of the user who asked
+    userName?: string; // Name of the user (for admin display)
+    userEmail?: string; // Email of the user (for admin display)
+    questionText: string;
+    askedAt: Timestamp;
+    status: 'pending' | 'answered' | 'rejected'; // Status of the question
+    answerText?: string | null; // The answer provided by the teacher/admin
+    answeredAt?: Timestamp | null; // When the question was answered
+    answeredBy?: string | null; // UID or name of the admin/teacher who answered
+    // fileUrl?: string | null; // Optional: URL for attached file (skipped for now)
+    // answerFileUrl?: string | null; // Optional: URL for answer file (skipped for now)
 }
