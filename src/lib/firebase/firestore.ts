@@ -1,3 +1,4 @@
+
 import { db, auth } from './config';
 import {
   collection,
@@ -142,12 +143,22 @@ export const getUserQuizResults = async (userId: string, count?: number): Promis
     });
     return results;
   } catch (error) {
-    console.error('Error getting user quiz results: ', error);
-    // Check for specific index error (optional, for better logging)
+    console.error('Error getting user quiz results: ', error); // Log the general error
+    // Check for specific index error
     if ((error as Error).message.includes('requires an index')) {
-        console.error("Firestore Index Missing: Please create the required composite index (userId Asc, completedAt Desc) in your Firebase console for the 'quizResults' collection.");
+        // Log a detailed warning with instructions instead of the previous error message
+        console.warn(
+          `Firestore Query Requires Index: The query to fetch user quiz results needs a composite index that is missing or building.` +
+          ` Please create it in your Firebase console:\n` +
+          `1. Go to Firestore Database -> Indexes.\n` +
+          `2. Click "Add composite index".\n` +
+          `3. Collection ID: 'quizResults'.\n` +
+          `4. Fields to index: 'userId' (Ascending), 'completedAt' (Descending).\n` +
+          `5. Click "Create".\n` +
+          `The dashboard functionality for recent results might be limited until this index is created and active.`
+        );
     }
-    throw error;
+    throw error; // Re-throw the error so the calling component knows about the failure
   }
 };
 
@@ -172,3 +183,4 @@ export const isCurrentUserAdmin = async (): Promise<boolean> => {
         return false; // Default to false on error
     }
 };
+
