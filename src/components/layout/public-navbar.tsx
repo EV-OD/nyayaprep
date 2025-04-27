@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { BookOpenCheck, LogIn, UserPlus, DollarSign, BrainCircuit } from 'lucide-react'; // Import icons
+import { BookOpenCheck, LogIn, UserPlus, DollarSign, BrainCircuit, LayoutDashboard } from 'lucide-react'; // Import icons including LayoutDashboard
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react'; // Import hooks
@@ -57,26 +57,35 @@ export function PublicNavbar() {
             </div>
 
             {/* Action Buttons - Conditionally Rendered */}
-            {!loadingAuth && !currentUser && (
-                <div className="flex items-center gap-2">
-                    <Link href="/login" passHref>
-                        <Button variant={pathname === '/login' ? 'default' : 'outline'} size="sm">
-                            <LogIn className="mr-1.5 h-4 w-4" /> Login
+            <div className="flex items-center gap-2">
+                {loadingAuth ? (
+                    // Optional: Add a loading indicator while checking auth state
+                    // <Skeleton className="h-9 w-36 rounded-md" />
+                    <div className="h-9 w-36"></div> // Placeholder to prevent layout shift
+                ) : currentUser ? (
+                    // Show Dashboard button if user is logged in
+                    <Link href="/dashboard" passHref>
+                        <Button variant={pathname.startsWith('/dashboard') ? 'default' : 'outline'} size="sm">
+                            <LayoutDashboard className="mr-1.5 h-4 w-4" /> Dashboard
                         </Button>
                     </Link>
-                    <Link href="/pricing" passHref>
-                        {/* Highlight Register if on pricing or register page */}
-                        <Button variant={pathname.startsWith('/register') || pathname === '/pricing' ? 'default' : 'secondary'} size="sm">
-                            <UserPlus className="mr-1.5 h-4 w-4" /> Register
-                        </Button>
-                    </Link>
-                </div>
-            )}
-             {/* Optional: Add a loading indicator while checking auth state */}
-             {/* {loadingAuth && <Skeleton className="h-9 w-36 rounded-md" />} */}
-             {/* Optional: Show different buttons or user menu if logged in */}
-             {/* {!loadingAuth && currentUser && ( ... show user menu or logout button ... )} */}
+                ) : (
+                    // Show Login and Register buttons if user is not logged in
+                    <>
+                        <Link href="/login" passHref>
+                            <Button variant={pathname === '/login' ? 'default' : 'outline'} size="sm">
+                                <LogIn className="mr-1.5 h-4 w-4" /> Login
+                            </Button>
+                        </Link>
+                        <Link href="/pricing" passHref>
+                            {/* Highlight Register if on pricing or register page */}
+                            <Button variant={pathname.startsWith('/register') || pathname === '/pricing' ? 'default' : 'secondary'} size="sm">
+                                <UserPlus className="mr-1.5 h-4 w-4" /> Register
+                            </Button>
+                        </Link>
+                    </>
+                )}
+             </div>
         </header>
     );
 }
-
