@@ -18,9 +18,11 @@ import {
   deleteDoc, // Import deleteDoc
   collectionGroup, // Needed for potential cross-collection queries if structure changes
   writeBatch, // For bulk operations like deleting selected MCQs
+  QueryDocumentSnapshot,
+  DocumentData,
 } from 'firebase/firestore';
 import type { UserProfile, QuizResult, SubscriptionPlan, TeacherQuestion } from '@/types/user';
-import type { Question } from '@/types/quiz'; // Import Question type
+import type { Question, Answer } from '@/types/quiz'; // Import Question and Answer types
 import type { User } from 'firebase/auth';
 
 const usersCollection = collection(db, 'users');
@@ -149,12 +151,18 @@ export const handleSubscriptionExpiry = async (uid: string): Promise<boolean> =>
 
 /**
  * Saves a user's quiz result to Firestore.
+ * Includes questionText and correctAnswerText in the answers array.
  * @param resultData The QuizResult data (excluding id).
  */
 export const saveQuizResult = async (resultData: Omit<QuizResult, 'id' | 'completedAt'>): Promise<string> => {
    const dataToSave = {
       ...resultData,
       completedAt: serverTimestamp(),
+      // Ensure answers array includes questionText and correctAnswerText
+      // This logic should ideally happen before calling saveQuizResult,
+      // by augmenting the `answers` array when constructing `resultData`.
+      // However, if `resultData.answers` already contains the necessary fields,
+      // this structure is fine.
    };
 
    try {
@@ -167,43 +175,56 @@ export const saveQuizResult = async (resultData: Omit<QuizResult, 'id' | 'comple
    }
 };
 
+
 /**
  * Fetches the quiz results for a specific user.
  * Requires Firestore index: quizResults(userId Asc, completedAt Desc).
  * @param userId The UID of the user.
- * @param count The maximum number of results to fetch (optional).
+ * @param count The maximum number of results to fetch (optional, defaults to 100 if not provided).
  * @returns An array of QuizResult objects.
  */
 export const getUserQuizResults = async (userId: string, count?: number): Promise<QuizResult[]> => {
   if (!userId) return [];
+  const fetchLimit = count && count > 0 ? count : 100; // Default limit
 
   try {
-    let q = query(
+    const q = query(
       quizResultsCollection,
       where('userId', '==', userId),
-      orderBy('completedAt', 'desc')
+      orderBy('completedAt', 'desc'),
+      limit(fetchLimit)
     );
-
-    if (count && count > 0) {
-       q = query(q, limit(count));
-    }
 
     const querySnapshot = await getDocs(q);
     const results: QuizResult[] = [];
-    querySnapshot.forEach((doc) => {
+    querySnapshot.forEach((doc: QueryDocumentSnapshot<DocumentData>) => {
         const data = doc.data();
         // Basic validation for required fields
-        if (data.userId && data.score !== undefined && data.totalQuestions !== undefined && data.percentage !== undefined && data.answers && data.completedAt instanceof Timestamp) {
-            const result: QuizResult = {
-              id: doc.id,
-              userId: data.userId,
-              score: data.score,
-              totalQuestions: data.totalQuestions,
-              percentage: data.percentage,
-              answers: data.answers,
-              completedAt: data.completedAt,
-            };
-            results.push(result);
+        if (data.userId && data.score !== undefined && data.totalQuestions !== undefined && data.percentage !== undefined && Array.isArray(data.answers) && data.completedAt instanceof Timestamp) {
+             // Further validate the structure of each answer in the array
+             const validAnswers = data.answers.every((ans: any) =>
+                 typeof ans.questionId === 'string' &&
+                 typeof ans.questionText === 'string' && // Check for new fields
+                 typeof ans.selectedAnswer === 'string' &&
+                 typeof ans.correctAnswerText === 'string' && // Check for new fields
+                 typeof ans.isCorrect === 'boolean'
+             );
+
+             if (validAnswers) {
+                const result: QuizResult = {
+                    id: doc.id,
+                    userId: data.userId,
+                    score: data.score,
+                    totalQuestions: data.totalQuestions,
+                    percentage: data.percentage,
+                    answers: data.answers as Answer[], // Cast as the updated Answer type
+                    completedAt: data.completedAt,
+                    // category: data.category || undefined, // Include if category exists
+                };
+                results.push(result);
+            } else {
+                console.warn(`Skipping quiz result document ${doc.id} due to invalid answers structure.`);
+            }
         } else {
             console.warn(`Skipping invalid quiz result document: ${doc.id}`);
         }
@@ -226,8 +247,6 @@ export const getUserQuizResults = async (userId: string, count?: number): Promis
             : "A required database index (quizResults: userId Asc, completedAt Desc) is missing. Please contact support or create it in the Firebase console.";
         throw new Error(userFriendlyMessage);
     }
-    // Return empty array on error to prevent breaking the UI if not throwing
-    // return [];
     throw error; // Re-throw other errors
   }
 };
@@ -410,23 +429,22 @@ export const getUserTeacherQuestions = async (userId: string): Promise<TeacherQu
         });
         return questions;
     } catch (error) {
-        const firebaseError = error as Error;
-        console.error('Error getting user teacher questions: ', firebaseError.message);
+         const firebaseError = error as Error;
+         console.error('Error getting user teacher questions: ', firebaseError.message);
+         // Check for specific index error
          if (firebaseError.message.includes('requires an index')) {
-           const isBuilding = firebaseError.message.includes('currently building');
-           const indexCreationMessage =
-             `Firestore Query Requires Index: The query to fetch user teacher questions needs a composite index:\n` +
-             `Collection: 'teacherQuestions', Fields: 'userId' (Ascending), 'askedAt' (Descending).\n`+
-             `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`;
-           console.warn(indexCreationMessage);
-           // Throw or display a user-friendly message indicating the index issue
-           const userFriendlyMessage = isBuilding
-              ? "The database index needed to fetch your questions is currently being built. Please try again in a few minutes."
-              : "A required database index (teacherQuestions: userId Asc, askedAt Desc) is missing. Please contact support or create it in the Firebase console.";
-           throw new Error(userFriendlyMessage); // Propagate a more informative error
+             const isBuilding = firebaseError.message.includes('currently building');
+             const indexCreationMessage =
+               `Firestore Query Requires Index: The query to fetch user teacher questions needs a composite index:\n` +
+               `Collection: 'teacherQuestions', Fields: 'userId' (Ascending), 'askedAt' (Descending).\n`+
+               `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`;
+             console.warn(indexCreationMessage);
+             // Propagate a more informative error
+             const userFriendlyMessage = isBuilding
+                 ? "The database index needed to fetch your questions is currently being built. Please try again in a few minutes."
+                 : "A required database index (teacherQuestions: userId Asc, askedAt Desc) is missing. Please contact support or create it in the Firebase console.";
+             throw new Error(userFriendlyMessage); // Propagate a more informative error
          }
-        // Return empty array on error
-        // return [];
         throw error; // Re-throw other errors
     }
 };
@@ -476,8 +494,6 @@ export const getPendingTeacherQuestions = async (): Promise<TeacherQuestion[]> =
               : "A required database index (teacherQuestions: status Asc, askedAt Asc) is missing. Please contact support or create it in the Firebase console.";
             throw new Error(userFriendlyMessage); // Propagate a more informative error
          }
-         // Return empty on error
-         // return [];
          throw error; // Re-throw other errors
     }
 };
@@ -741,7 +757,32 @@ export const deleteMultipleMcqs = async (ids: string[]): Promise<void> => {
 export const getRandomMcqs = async (count: number): Promise<Question[]> => {
   if (count <= 0) return [];
   try {
-    const allMcqs = await getAllMcqs(); // Fetch all MCQs
+    // Fetch all MCQs (potentially inefficient for very large collections)
+    const allMcqsSnapshot = await getDocs(mcqsCollection);
+    const allMcqs: Question[] = [];
+     allMcqsSnapshot.forEach((doc) => {
+       const data = doc.data();
+       // Basic validation
+       if (data.category && data.question && data.options && data.correctAnswer) {
+          allMcqs.push({
+            id: doc.id,
+            category: data.category,
+            question: data.question,
+            options: data.options,
+            correctAnswer: data.correctAnswer,
+            createdAt: data.createdAt instanceof Timestamp ? data.createdAt : undefined,
+            updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt : undefined,
+          });
+        } else {
+          console.warn(`Skipping invalid MCQ document during random fetch: ${doc.id}`);
+        }
+    });
+
+    if (allMcqs.length === 0) {
+        console.warn("No MCQs found in the database to sample from.");
+        return [];
+    }
+
     if (allMcqs.length <= count) {
       // If requested count is >= total MCQs, return all shuffled
       return shuffleArray(allMcqs);
@@ -764,4 +805,103 @@ const shuffleArray = (array: any[]) => {
     [array[i], array[j]] = [array[j], array[i]]; // Swap elements
   }
   return array;
+};
+
+
+// --- Performance Statistics Calculation ---
+
+export interface UserPerformanceStats {
+  totalQuizzes: number;
+  totalQuestions: number;
+  correctAnswers: number;
+  accuracy: number; // Percentage
+  averageScore: number; // Percentage
+  // categoryStats: { [category: string]: { total: number; correct: number; accuracy: number } };
+  // scoreOverTime: { date: string; percentage: number }[]; // For chart
+}
+
+/**
+ * Calculates performance statistics based on user's quiz results.
+ * Fetches all results for the user to perform calculation.
+ * @param userId The UID of the user.
+ * @returns Promise<UserPerformanceStats | null> Performance stats or null if no results found.
+ */
+export const calculateUserPerformanceStats = async (userId: string): Promise<UserPerformanceStats | null> => {
+  if (!userId) return null;
+
+  try {
+    // Fetch ALL quiz results for the user to calculate stats
+    // Warning: This can be inefficient for users with a very large number of results.
+    // Consider pagination or server-side aggregation for larger scales.
+    const allResults = await getUserQuizResults(userId); // No limit specified to fetch all
+
+    if (allResults.length === 0) {
+      return null; // No results to calculate stats from
+    }
+
+    let totalQuestionsAnswered = 0;
+    let totalCorrectAnswers = 0;
+    let totalPercentageSum = 0;
+    // let categoryCounts: { [category: string]: { total: number; correct: number } } = {};
+    // let scoresOverTime: { date: string; percentage: number }[] = [];
+
+    allResults.forEach(result => {
+      totalQuestionsAnswered += result.totalQuestions;
+      totalCorrectAnswers += result.score;
+      totalPercentageSum += result.percentage;
+
+      // Process for score over time chart
+      // scoresOverTime.push({
+      //   date: result.completedAt.toDate().toISOString().split('T')[0], // Format as YYYY-MM-DD
+      //   percentage: result.percentage,
+      // });
+
+      // Process for category stats (Requires MCQs to have category info)
+      // Assuming you fetch MCQ details or store category with the result
+      // result.answers.forEach(answer => {
+      //   const question = getMcqById(answer.questionId); // Hypothetical sync function or fetch needed
+      //   if (question && question.category) {
+      //       const category = question.category;
+      //       if (!categoryCounts[category]) {
+      //           categoryCounts[category] = { total: 0, correct: 0 };
+      //       }
+      //       categoryCounts[category].total++;
+      //       if (answer.isCorrect) {
+      //           categoryCounts[category].correct++;
+      //       }
+      //   }
+      // });
+    });
+
+    const totalQuizzes = allResults.length;
+    const accuracy = totalQuestionsAnswered > 0 ? Math.round((totalCorrectAnswers / totalQuestionsAnswered) * 100) : 0;
+    const averageScore = totalQuizzes > 0 ? Math.round(totalPercentageSum / totalQuizzes) : 0;
+
+    // Calculate category accuracy
+    // const categoryStats = Object.entries(categoryCounts).reduce((acc, [category, counts]) => {
+    //   acc[category] = {
+    //     ...counts,
+    //     accuracy: counts.total > 0 ? Math.round((counts.correct / counts.total) * 100) : 0,
+    //   };
+    //   return acc;
+    // }, {} as UserPerformanceStats['categoryStats']);
+
+    // Sort scores over time
+    // scoresOverTime.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+
+    return {
+      totalQuizzes,
+      totalQuestions: totalQuestionsAnswered,
+      correctAnswers: totalCorrectAnswers,
+      accuracy,
+      averageScore,
+      // categoryStats, // Add back when implemented
+      // scoreOverTime, // Add back when implemented
+    };
+
+  } catch (error) {
+    console.error(`Error calculating performance stats for user ${userId}:`, error);
+    throw error; // Re-throw the error
+  }
 };

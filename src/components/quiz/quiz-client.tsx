@@ -25,14 +25,14 @@ interface QuizClientProps {
 
 export function QuizClient({ questions }: QuizClientProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({}); // { questionId: selectedAnswerText }
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({}); // { questionId: selectedAnswerText (in current language) }
   const [quizFinished, setQuizFinished] = useState(false);
   const [score, setScore] = useState(0);
   const [language, setLanguage] = useState<Language>('en');
   const [translations, setTranslations] = useState<Record<string, TranslatedText>>({}); // Cache for dynamic translations
   const [isTranslating, setIsTranslating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false); // Loading state for submission
-  const [finalAnswers, setFinalAnswers] = useState<Answer[]>([]);
+  const [finalAnswers, setFinalAnswers] = useState<Answer[]>([]); // Will store answers with text
   const [showReview, setShowReview] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null); // Store current user's ID
 
@@ -87,6 +87,7 @@ export function QuizClient({ questions }: QuizClientProps) {
 
   // --- Quiz Logic ---
   const handleOptionSelect = (value: string) => {
+     // Value is the selected answer text in the current language
     setSelectedAnswers((prev) => ({
       ...prev,
       [currentQuestion.id]: value,
@@ -108,22 +109,28 @@ export function QuizClient({ questions }: QuizClientProps) {
  const handleSubmit = async () => {
     setIsSubmitting(true);
     let calculatedScore = 0;
-    const answers: Answer[] = questions.map(q => {
-      const selected = selectedAnswers[q.id];
-      // Ensure correctAnswer is accessed safely and in the correct language
-      const correct = q.correctAnswer?.[language];
-      const isCorrect = !!selected && selected === correct; // Ensure selected is not undefined
-      if (isCorrect) {
-        calculatedScore++;
-      }
-      return {
-        questionId: q.id,
-        selectedAnswer: selected || "Not Answered",
-        isCorrect: isCorrect,
-      };
+
+    // Construct the final answers array including the text of questions and answers
+    const constructedAnswers: Answer[] = questions.map(q => {
+        const selectedAnswerText = selectedAnswers[q.id]; // Selected answer in the language it was answered
+        const currentQuestionText = q.question?.[language] || 'Question Text N/A'; // Question text in the language answered
+        const correctAnswerText = q.correctAnswer?.[language] || 'Correct Answer N/A'; // Correct answer text in the language answered
+
+        const isCorrect = !!selectedAnswerText && selectedAnswerText === correctAnswerText;
+        if (isCorrect) {
+            calculatedScore++;
+        }
+
+        return {
+            questionId: q.id,
+            questionText: currentQuestionText, // Store the question text
+            selectedAnswer: selectedAnswerText || "Not Answered",
+            correctAnswerText: correctAnswerText, // Store the correct answer text
+            isCorrect: isCorrect,
+        };
     });
 
-    setFinalAnswers(answers);
+    setFinalAnswers(constructedAnswers); // Set the detailed answers for review
     const finalScore = calculatedScore;
     setScore(finalScore);
 
@@ -137,7 +144,8 @@ export function QuizClient({ questions }: QuizClientProps) {
         score: finalScore,
         totalQuestions: totalQuestions,
         percentage: percentage,
-        answers: answers,
+        answers: constructedAnswers, // Save the detailed answers
+        // category: currentQuestion?.category, // Optional: Save category if quizzes are themed
         // completedAt will be set by Firestore serverTimestamp in saveQuizResult
       };
       try {
@@ -188,7 +196,7 @@ export function QuizClient({ questions }: QuizClientProps) {
   };
 
   // --- Memoized values for performance ---
-  const currentQuestionText = useMemo(() => getTranslatedText(currentQuestion?.question), [currentQuestion, language, translations]);
+  const currentQuestionTextMemo = useMemo(() => getTranslatedText(currentQuestion?.question), [currentQuestion, language, translations]);
   const currentOptions = useMemo(() => getTranslatedOptions(currentQuestion?.options), [currentQuestion, language, translations]);
   // currentCorrectAnswer is calculated inside handleSubmit now
 
@@ -226,9 +234,9 @@ export function QuizClient({ questions }: QuizClientProps) {
          <ReviewAnswersDialog
             isOpen={showReview}
             onClose={() => setShowReview(false)}
-            answers={finalAnswers}
-            questions={questions}
-            language={language}
+            answers={finalAnswers} // Pass the detailed final answers
+            questions={questions} // Pass original questions for reference if needed
+            language={language} // Pass the language used during the quiz
           />
       </div>
     );
@@ -260,7 +268,7 @@ export function QuizClient({ questions }: QuizClientProps) {
           </div>
           <CardTitle className="text-xl md:text-2xl font-semibold leading-tight">
              {/* Add loading state for question text if needed */}
-             {`Q${currentQuestionIndex + 1}: ${currentQuestionText || 'Loading...'}`}
+             {`Q${currentQuestionIndex + 1}: ${currentQuestionTextMemo || 'Loading...'}`}
           </CardTitle>
            <Progress value={progress} className="w-full mt-4 h-1.5" />
         </CardHeader>
@@ -362,13 +370,16 @@ export function QuizClient({ questions }: QuizClientProps) {
         <ReviewAnswersDialog
           isOpen={showReview && !quizFinished} // Only show review in-progress if not finished
           onClose={() => setShowReview(false)}
-          // Calculate provisional answers for review dialog
-           answers={Object.entries(selectedAnswers).map(([qId, selAns]) => {
+          // Calculate provisional answers for review dialog (using only selected text)
+          answers={Object.entries(selectedAnswers).map(([qId, selAns]) => {
              const question = questions.find(q => q.id === qId);
-             const isCorrect = !!question && !!selAns && question.correctAnswer?.[language] === selAns;
+             const correctAnsText = question?.correctAnswer?.[language] || '';
+             const isCorrect = !!question && !!selAns && correctAnsText === selAns;
              return {
                questionId: qId,
+               questionText: question?.question?.[language] || '', // Include question text
                selectedAnswer: selAns,
+               correctAnswerText: correctAnsText, // Include correct answer text
                isCorrect: isCorrect
              };
            })}
