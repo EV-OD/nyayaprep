@@ -66,24 +66,35 @@ export default function LoginPage() {
 
     } catch (err: unknown) {
       const authError = err as AuthError;
-      console.error('Firebase Login Error:', authError);
+      // Log the detailed error for debugging purposes
+      console.error('Firebase Login Error:', authError.code, authError.message);
 
       let errorMessage = 'An unexpected error occurred. Please try again.';
+      // Handle specific Firebase authentication errors
       switch (authError.code) {
         case 'auth/user-not-found':
         case 'auth/wrong-password':
-        case 'auth/invalid-credential':
-          errorMessage = 'Invalid email or password.';
+        case 'auth/invalid-credential': // Covers incorrect email/password, disabled accounts etc.
+          errorMessage = 'Invalid email or password. Please check your credentials.';
           break;
         case 'auth/invalid-email':
-          errorMessage = 'Please enter a valid email address.';
+          errorMessage = 'The email address format is not valid.';
           break;
+        case 'auth/user-disabled':
+           errorMessage = 'This user account has been disabled.';
+           break;
         case 'auth/too-many-requests':
-          errorMessage = 'Too many login attempts. Please try again later.';
+          errorMessage = 'Access temporarily disabled due to too many failed login attempts. Please reset your password or try again later.';
           break;
         // Add other Firebase Auth error codes as needed
+        default:
+           // Keep the generic error for unhandled cases
+           console.warn(`Unhandled Firebase Auth Error Code: ${authError.code}`);
+           break;
       }
+      // Update the UI state to show the error message below the form
       setError(errorMessage);
+      // Show a user-friendly toast notification
       toast({
         variant: 'destructive',
         title: 'Login Failed',
@@ -131,8 +142,9 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
+              {/* Display the error message */}
               {error && (
-                <p className="text-sm text-destructive text-center pt-2">{error}</p>
+                <p className="text-sm font-medium text-destructive text-center pt-2">{error}</p>
               )}
             </CardContent>
             <CardFooter className="flex flex-col gap-3 pt-4">
