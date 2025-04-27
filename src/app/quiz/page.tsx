@@ -66,7 +66,13 @@ export default function QuizPage() {
 
       // Render QuizClient only if questions are loaded successfully and no error occurred
       // Note: We already handled the case where fetchedQuestions.length is 0 by setting an error.
-      return <QuizClient questions={questions} />;
+      return (
+        <div className="flex flex-col items-center justify-center flex-1 p-4 md:p-8">
+          <div className="w-full max-w-3xl">
+            <QuizClient questions={questions} />
+          </div>
+        </div>
+      );
   }
 
   return (
@@ -84,7 +90,7 @@ export default function QuizPage() {
 function QuizLoadingSkeleton() {
   return (
     <div className="flex flex-col items-center justify-center flex-1 p-4 md:p-8">
-      <div className="w-full max-w-2xl bg-card p-6 md:p-8 rounded-xl shadow-lg border">
+      <div className="w-full max-w-3xl bg-card p-6 md:p-8 rounded-xl shadow-lg border">
          <Skeleton className="h-4 w-1/4 mb-4" />
         <Skeleton className="h-8 w-full mb-6" />
         <div className="space-y-4 mb-8">
