@@ -112,14 +112,8 @@ export default function PricingPage() {
         }
     } else {
         // User is not logged in
-        if (planId === 'free') {
-            // Redirect to register page for free plan
-            router.push(`/register?plan=${planId}`);
-        } else {
-            // Redirect to login page, passing the target plan and pricing page as redirect URL
-            const redirectUrl = encodeURIComponent(`/payment?plan=${planId}`);
-            router.push(`/login?redirect=${redirectUrl}`);
-        }
+        // Redirect to the register page, passing the selected plan
+        router.push(`/register?plan=${planId}`);
     }
   };
 
