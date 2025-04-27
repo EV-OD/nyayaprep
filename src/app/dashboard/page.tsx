@@ -345,14 +345,14 @@ export default function UserDashboardPage() {
        {/* Third Row: Notes/Resources & Videos */}
        <div className="grid gap-6 md:grid-cols-2">
           {/* Notes & Resources Section */}
-          <Card className="relative overflow-hidden">
+          <Card className="relative overflow-hidden flex flex-col">
               <CardHeader>
                  <CardTitle className="flex items-center gap-2"><Newspaper size={20} /> Notes & Resources</CardTitle>
                  <CardDescription>Access study materials, PDFs, and important notes.</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex-grow relative"> {/* Make content area grow */}
                  {contentLocked && (
-                     <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-10 rounded-lg">
+                     <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-10 rounded-b-lg"> {/* Cover content area */}
                          <Lock size={40} className="text-primary mb-4" />
                          <p className="text-center font-semibold mb-4">This section requires a validated Premium plan.</p>
                           <UpgradeAlertDialog
@@ -372,19 +372,23 @@ export default function UserDashboardPage() {
                           <Button variant="outline" size="sm" disabled={contentLocked}>View</Button>
                       </div>
                        {/* Add more resources */}
+                       <div className="flex justify-between items-center p-3 border rounded-md">
+                          <span className="text-sm font-medium">Sample Contract Drafts</span>
+                          <Button variant="outline" size="sm" disabled={contentLocked}>View</Button>
+                      </div>
                   </div>
               </CardContent>
           </Card>
 
           {/* Videos Section */}
-           <Card className="relative overflow-hidden">
+           <Card className="relative overflow-hidden flex flex-col">
               <CardHeader>
                  <CardTitle className="flex items-center gap-2"><Video size={20} /> Video Lectures</CardTitle>
                  <CardDescription>Watch recorded lectures and tutorials.</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex-grow relative">
                   {contentLocked && (
-                     <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-10 rounded-lg">
+                     <div className="absolute inset-0 bg-background/80 dark:bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-10 rounded-b-lg">
                          <Lock size={40} className="text-primary mb-4" />
                          <p className="text-center font-semibold mb-4">This section requires a validated Premium plan.</p>
                          <UpgradeAlertDialog
@@ -410,6 +414,24 @@ export default function UserDashboardPage() {
                             </div>
                             <div className="p-3">
                                 <p className="text-sm font-medium mb-1 line-clamp-1">Understanding Writs</p>
+                                <Button variant="link" size="sm" className="p-0 h-auto text-xs" disabled={contentLocked}>Watch Now</Button>
+                            </div>
+                       </div>
+                       <div className="border rounded-md overflow-hidden">
+                            <div className="aspect-video bg-muted flex items-center justify-center">
+                                <Video size={48} className="text-muted-foreground" />
+                            </div>
+                            <div className="p-3">
+                                <p className="text-sm font-medium mb-1 line-clamp-1">Sources of Law</p>
+                                <Button variant="link" size="sm" className="p-0 h-auto text-xs" disabled={contentLocked}>Watch Now</Button>
+                            </div>
+                       </div>
+                       <div className="border rounded-md overflow-hidden">
+                            <div className="aspect-video bg-muted flex items-center justify-center">
+                                <Video size={48} className="text-muted-foreground" />
+                            </div>
+                            <div className="p-3">
+                                <p className="text-sm font-medium mb-1 line-clamp-1">Exam Strategy Session</p>
                                 <Button variant="link" size="sm" className="p-0 h-auto text-xs" disabled={contentLocked}>Watch Now</Button>
                             </div>
                        </div>
@@ -456,3 +478,5 @@ function SubscriptionSkeleton() {
          </div>
     );
 }
+
+    
