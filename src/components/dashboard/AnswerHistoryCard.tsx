@@ -70,7 +70,7 @@ export function AnswerHistoryCard({ locked, loading, results, onUpgradeClick }: 
                        <div key={result.id} className="flex justify-between items-center p-3 border rounded-md hover:bg-muted/50 transition-colors">
                          <div>
                            <p className="text-sm font-medium">Quiz on {format(result.completedAt.toDate(), 'PP')}</p>
-                           <p className="text-xs text-muted-foreground">
+                           <div className="text-xs text-muted-foreground">
                                 Score: {result.score}/{result.totalQuestions}
                                 <Badge
                                     variant={getScoreBadgeVariant(result.percentage)}
@@ -78,7 +78,7 @@ export function AnswerHistoryCard({ locked, loading, results, onUpgradeClick }: 
                                 >
                                     {result.percentage}%
                                 </Badge>
-                           </p>
+                           </div>
                          </div>
                          <Button
                            variant="ghost"
