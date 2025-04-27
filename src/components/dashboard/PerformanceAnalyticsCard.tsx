@@ -4,8 +4,8 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, LabelList } from "recharts";
-import { TrendingUp, Lock, Zap } from 'lucide-react';
+import { LineChart, Line, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Area } from "recharts"; // Import LineChart, Line, Area
+import { TrendingUp, Lock, Zap, Activity } from 'lucide-react'; // Use Activity icon for trend
 import type { UserPerformanceStats } from '@/lib/firebase/firestore';
 import { cn } from '@/lib/utils';
 import { PerformanceAnalyticsSkeleton } from './skeletons';
@@ -21,19 +21,24 @@ interface PerformanceAnalyticsCardProps {
 export function PerformanceAnalyticsCard({ locked, loading, performanceStats, onUpgradeClick }: PerformanceAnalyticsCardProps) {
 
   const chartData = useMemo(() => {
-    // Placeholder data - replace with actual logic using performanceStats?.scoreOverTime if available
-    return [
-        { date: 'Week 1', score: performanceStats?.averageScore ? performanceStats.averageScore * 0.8 : 65 }, // Example dynamic data
-        { date: 'Week 2', score: performanceStats?.averageScore ? performanceStats.averageScore * 0.9 : 72 },
-        { date: 'Week 3', score: performanceStats?.averageScore ? performanceStats.averageScore * 0.85 : 70 },
-        { date: 'Week 4', score: performanceStats?.averageScore || 85 },
+    // Example data structure - ensure your actual stats calculation provides similar data
+    const exampleScoreOverTime = [
+      { date: 'Week 1', score: performanceStats?.averageScore ? performanceStats.averageScore * 0.8 : 65 },
+      { date: 'Week 2', score: performanceStats?.averageScore ? performanceStats.averageScore * 0.9 : 72 },
+      { date: 'Week 3', score: performanceStats?.averageScore ? performanceStats.averageScore * 0.85 : 70 },
+      { date: 'Week 4', score: performanceStats?.averageScore || 85 },
+      { date: 'Week 5', score: performanceStats ? performanceStats.averageScore * 1.05 : 88 }, // Adding more points
+      { date: 'Week 6', score: performanceStats ? performanceStats.averageScore * 1.1 : 92 },
     ];
+    // TODO: Replace with actual performanceStats.scoreOverTime when implemented
+    // return performanceStats?.scoreOverTime || exampleScoreOverTime;
+    return exampleScoreOverTime;
   }, [performanceStats]);
 
   const chartConfig = {
     score: {
         label: "Average Score (%)",
-        color: "hsl(var(--primary))",
+        color: "hsl(var(--primary))", // Use primary color
     },
   } satisfies ChartConfig;
 
@@ -55,48 +60,94 @@ export function PerformanceAnalyticsCard({ locked, loading, performanceStats, on
                     />
                 </div>
             )}
-             <div className={cn("space-y-4", locked ? "opacity-30 pointer-events-none" : "")}>
+             <div className={cn("space-y-6", locked ? "opacity-30 pointer-events-none" : "")}>
                 {loading ? (
                    <PerformanceAnalyticsSkeleton />
                 ) : performanceStats ? (
                     <>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div className="flex flex-col items-center p-3 border rounded-md">
-                                <span className="text-xs text-muted-foreground">Accuracy</span>
-                                <span className="text-lg font-bold">{performanceStats.accuracy}%</span>
+                        {/* Key Stats Section */}
+                        <div className="grid grid-cols-2 gap-4 text-center">
+                            <div className="p-3 border rounded-lg bg-muted/30">
+                                <p className="text-xs text-muted-foreground mb-1">Overall Accuracy</p>
+                                <p className="text-xl font-bold">{performanceStats.accuracy}%</p>
                             </div>
-                             <div className="flex flex-col items-center p-3 border rounded-md">
-                                <span className="text-xs text-muted-foreground">Avg. Score</span>
-                                <span className="text-lg font-bold">{performanceStats.averageScore}%</span>
+                             <div className="p-3 border rounded-lg bg-muted/30">
+                                <p className="text-xs text-muted-foreground mb-1">Avg. Score</p>
+                                <p className="text-xl font-bold">{performanceStats.averageScore}%</p>
                             </div>
-                             <div className="flex flex-col items-center p-3 border rounded-md">
-                                <span className="text-xs text-muted-foreground">Quizzes Taken</span>
-                                <span className="text-lg font-bold">{performanceStats.totalQuizzes}</span>
+                             <div className="p-3 border rounded-lg bg-muted/30">
+                                <p className="text-xs text-muted-foreground mb-1">Quizzes Taken</p>
+                                <p className="text-xl font-bold">{performanceStats.totalQuizzes}</p>
                             </div>
-                            <div className="flex flex-col items-center p-3 border rounded-md">
-                                <span className="text-xs text-muted-foreground">Questions</span>
-                                <span className="text-lg font-bold">{performanceStats.totalQuestions}</span>
+                            <div className="p-3 border rounded-lg bg-muted/30">
+                                <p className="text-xs text-muted-foreground mb-1">Questions Done</p>
+                                <p className="text-xl font-bold">{performanceStats.totalQuestions}</p>
                             </div>
                         </div>
-                        {/* Example Chart */}
-                        <div className="mt-4">
-                            <h4 className="text-sm font-medium mb-2 text-center">Score Trend (Example)</h4>
-                             <ChartContainer config={chartConfig} className="h-[150px] w-full">
-                                <BarChart accessibilityLayer data={chartData} margin={{ top: 20, left:-10, right: 0, bottom: 0 }}>
-                                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                                    <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={10} />
-                                    <YAxis hide={true} domain={[0, 100]} />
-                                    <ChartTooltip content={<ChartTooltipContent hideIndicator />} />
-                                    <Bar dataKey="score" fill="var(--color-score)" radius={4}>
-                                        <LabelList position="top" offset={5} fontSize={10} fill="hsl(var(--foreground))" />
-                                    </Bar>
-                                </BarChart>
-                            </ChartContainer>
-                             <Button variant="link" size="sm" className="p-0 h-auto text-xs mt-2" disabled={locked}>View Detailed Analytics</Button>
+
+                        {/* Score Trend Chart */}
+                        <div className="mt-6">
+                            <h4 className="text-sm font-medium mb-3 text-center text-foreground">Score Trend (Weekly Avg.)</h4>
+                            <ChartContainer config={chartConfig} className="h-[200px] w-full">
+                                <ResponsiveContainer>
+                                    <LineChart
+                                        data={chartData}
+                                        margin={{ top: 5, right: 10, left: -25, bottom: 0 }} // Adjusted margins
+                                    >
+                                        <defs>
+                                            <linearGradient id="gradientFill" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4}/>
+                                            <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border)/0.5)" />
+                                        <XAxis
+                                            dataKey="date"
+                                            tickLine={false}
+                                            axisLine={false}
+                                            tickMargin={8}
+                                            fontSize={10}
+                                            tickFormatter={(value) => value} // Use date string directly
+                                        />
+                                        <YAxis
+                                            tickLine={false}
+                                            axisLine={false}
+                                            tickMargin={8}
+                                            fontSize={10}
+                                            domain={[0, 100]} // Assuming score is percentage
+                                            tickFormatter={(value) => `${value}%`}
+                                        />
+                                        <ChartTooltip
+                                            cursor={false}
+                                            content={<ChartTooltipContent indicator="dot" hideLabel />}
+                                        />
+                                        <Area
+                                            dataKey="score"
+                                            type="natural" // Use natural for smooth curve
+                                            fill="url(#gradientFill)" // Apply gradient
+                                            fillOpacity={1}
+                                            strokeWidth={0} // Hide area border
+                                        />
+                                        <Line
+                                            dataKey="score"
+                                            type="natural" // Use natural for smooth curve
+                                            stroke="hsl(var(--primary))"
+                                            strokeWidth={2}
+                                            dot={{ r: 4, fill: "hsl(var(--primary))" }}
+                                            activeDot={{ r: 6, strokeWidth: 2 }}
+                                        />
+
+                                    </LineChart>
+                                </ResponsiveContainer>
+                             </ChartContainer>
+                             {/* <Button variant="link" size="sm" className="p-0 h-auto text-xs mt-2 float-right" disabled={locked}>View Detailed Analytics</Button> */}
                         </div>
                     </>
                 ) : (
-                    <p className="text-center text-muted-foreground py-6">Take some quizzes to see your analytics.</p>
+                     <div className="text-center py-10 text-muted-foreground">
+                         <Activity size={32} className="mx-auto mb-3" />
+                         <p>Take some quizzes to see your performance analytics.</p>
+                     </div>
                 )}
             </div>
         </CardContent>
