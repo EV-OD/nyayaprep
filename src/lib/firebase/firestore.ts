@@ -1,5 +1,3 @@
-
-
 import { db, auth } from './config';
 import {
   collection,
@@ -15,14 +13,19 @@ import {
   limit,
   serverTimestamp,
   updateDoc,
-  increment, // Import increment
+  increment,
+  deleteDoc, // Import deleteDoc
+  collectionGroup, // Needed for potential cross-collection queries if structure changes
+  writeBatch, // For bulk operations like deleting selected MCQs
 } from 'firebase/firestore';
-import type { UserProfile, QuizResult, SubscriptionPlan, TeacherQuestion } from '@/types/user'; // Import TeacherQuestion
+import type { UserProfile, QuizResult, SubscriptionPlan, TeacherQuestion } from '@/types/user';
+import type { Question } from '@/types/quiz'; // Import Question type
 import type { User } from 'firebase/auth';
 
 const usersCollection = collection(db, 'users');
 const quizResultsCollection = collection(db, 'quizResults');
-const teacherQuestionsCollection = collection(db, 'teacherQuestions'); // Collection for teacher questions
+const teacherQuestionsCollection = collection(db, 'teacherQuestions');
+const mcqsCollection = collection(db, 'mcqs'); // Collection for MCQs
 
 /**
  * Creates or updates a user profile document in Firestore.
@@ -44,26 +47,24 @@ export const createUserProfileDocument = async (
   if (!user) throw new Error("User object is required.");
 
   const userRef = doc(usersCollection, user.uid);
-  const userProfile: UserProfile = {
+  const userProfile: Omit<UserProfile, 'createdAt'> = { // Omit createdAt as it's set by serverTimestamp
     uid: user.uid,
     email: user.email || '',
     name: additionalData.name,
     phone: additionalData.phone,
-    role: 'user',
+    role: 'user', // Default role
     subscription: additionalData.subscription,
     profilePicture: additionalData.profilePicture || null,
-    createdAt: Timestamp.now(),
-    validated: additionalData.subscription === 'free',
-    // Initialize Ask Teacher fields
+    validated: additionalData.subscription === 'free', // Free plans are auto-validated
     askTeacherCount: 0,
-    lastAskTeacherDate: Timestamp.fromMillis(0), // Initialize with epoch to ensure first check works
-    // Initialize Notification fields
+    lastAskTeacherDate: Timestamp.fromMillis(0), // Initialize with epoch
     unreadNotifications: 0,
-    lastNotificationCheck: Timestamp.now(), // Set initial check time
+    lastNotificationCheck: Timestamp.now(), // Initialize check time
   };
 
   try {
-    await setDoc(userRef, userProfile, { merge: true });
+    // Use serverTimestamp() for createdAt during the set operation
+    await setDoc(userRef, { ...userProfile, createdAt: serverTimestamp() }, { merge: true });
     console.log(`User profile created/updated successfully for UID: ${user.uid}. Validated: ${userProfile.validated}`);
   } catch (error) {
     console.error('Error creating/updating user profile document:', error);
@@ -185,7 +186,7 @@ export const getUserQuizResults = async (userId: string, count?: number): Promis
          `Please create this index in your Firebase console. ${isBuilding ? 'The index is currently building, please wait a few minutes and try again.' : 'Ensure the index is fully built before retrying.'}`;
        console.warn(indexCreationMessage);
        // Throw or display a user-friendly message indicating the index issue
-       throw new Error(indexCreationMessage); // Propagate a more informative error
+       throw new Error(`Firestore Index Missing: Please create the required composite index (userId Asc, completedAt Desc) in your Firebase console for the 'quizResults' collection.`); // Propagate a more informative error
      }
     // Return empty array on error to prevent breaking the UI if not throwing
     // return [];
@@ -274,12 +275,12 @@ export const saveTeacherQuestion = async (
         throw new Error("User ID and question text are required.");
     }
 
-    const questionData: Omit<TeacherQuestion, 'id'> = {
+    const questionData: Omit<TeacherQuestion, 'id' | 'askedAt'> = {
         userId: userId,
         userName: userName || 'Unknown User', // Store name if available
         userEmail: userEmail || 'No Email', // Store email if available
         questionText: questionText,
-        askedAt: serverTimestamp() as Timestamp, // Use server timestamp
+        // askedAt: serverTimestamp() as Timestamp, // Use server timestamp
         status: 'pending',
         // Initialize optional fields
         answerText: null,
@@ -288,7 +289,7 @@ export const saveTeacherQuestion = async (
     };
 
     try {
-        const docRef = await addDoc(teacherQuestionsCollection, questionData);
+        const docRef = await addDoc(teacherQuestionsCollection, { ...questionData, askedAt: serverTimestamp() });
         console.log('Teacher question saved with ID: ', docRef.id);
         return docRef.id;
     } catch (error) {
@@ -421,8 +422,11 @@ export const answerTeacherQuestion = async (
         if (!questionSnap.exists()) {
             throw new Error(`Question with ID ${questionId} not found.`);
         }
-        const questionData = questionSnap.data() as TeacherQuestion;
+        const questionData = questionSnap.data() as TeacherQuestion; // Assume type is correct
         const userId = questionData.userId;
+        if (!userId) {
+             throw new Error(`User ID not found on question document ${questionId}.`);
+        }
         const userRef = doc(usersCollection, userId);
 
         // Update the question document
@@ -465,4 +469,199 @@ export const clearUserNotifications = async (uid: string): Promise<void> => {
     }
 };
 
-    
+
+// --- MCQ CRUD Operations ---
+
+/**
+ * Adds a new MCQ question to the 'mcqs' collection.
+ * @param questionData The question data (without id).
+ * @returns The ID of the newly created MCQ document.
+ */
+export const addMcq = async (questionData: Omit<Question, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+  const dataToSave = {
+    ...questionData,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  try {
+    const docRef = await addDoc(mcqsCollection, dataToSave);
+    console.log('MCQ added with ID: ', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('Error adding MCQ document: ', error);
+    throw error;
+  }
+};
+
+/**
+ * Fetches all MCQ questions from the 'mcqs' collection.
+ * Optionally orders by creation date.
+ * @param orderByDate Fetch ordered by createdAt descending?
+ * @returns An array of Question objects.
+ */
+export const getAllMcqs = async (orderByDate = false): Promise<Question[]> => {
+  try {
+    let q = query(mcqsCollection);
+    if (orderByDate) {
+      q = query(q, orderBy('createdAt', 'desc'));
+    }
+    const querySnapshot = await getDocs(q);
+    const mcqs: Question[] = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      // Basic validation (add more as needed)
+      if (data.category && data.question && data.options && data.correctAnswer) {
+        mcqs.push({
+          id: doc.id,
+          category: data.category,
+          question: data.question,
+          options: data.options,
+          correctAnswer: data.correctAnswer,
+          createdAt: data.createdAt instanceof Timestamp ? data.createdAt : undefined,
+          updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt : undefined,
+        });
+      } else {
+        console.warn(`Skipping invalid MCQ document: ${doc.id}`);
+      }
+    });
+    return mcqs;
+  } catch (error) {
+    console.error('Error getting all MCQs: ', error);
+    throw error;
+  }
+};
+
+/**
+ * Fetches a specific MCQ question by its ID.
+ * @param id The document ID of the MCQ.
+ * @returns The Question object or null if not found.
+ */
+export const getMcqById = async (id: string): Promise<Question | null> => {
+  if (!id) return null;
+  const mcqRef = doc(mcqsCollection, id);
+  try {
+    const docSnap = await getDoc(mcqRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+       // Basic validation (add more as needed)
+       if (data.category && data.question && data.options && data.correctAnswer) {
+          return {
+            id: docSnap.id,
+            category: data.category,
+            question: data.question,
+            options: data.options,
+            correctAnswer: data.correctAnswer,
+            createdAt: data.createdAt instanceof Timestamp ? data.createdAt : undefined,
+            updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt : undefined,
+          };
+        } else {
+            console.warn(`Invalid data structure for MCQ document: ${id}`);
+            return null;
+        }
+    } else {
+      console.log('No such MCQ document!');
+      return null;
+    }
+  } catch (error) {
+    console.error(`Error getting MCQ document ${id}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Updates an existing MCQ question.
+ * @param id The document ID of the MCQ to update.
+ * @param updatedData The partial data to update.
+ */
+export const updateMcq = async (id: string, updatedData: Partial<Omit<Question, 'id' | 'createdAt'>>): Promise<void> => {
+  if (!id) throw new Error("MCQ ID is required for update.");
+  const mcqRef = doc(mcqsCollection, id);
+  const dataToUpdate = {
+      ...updatedData,
+      updatedAt: serverTimestamp(), // Always update the updatedAt timestamp
+  };
+  try {
+    await updateDoc(mcqRef, dataToUpdate);
+    console.log(`MCQ ${id} updated successfully.`);
+  } catch (error) {
+    console.error(`Error updating MCQ ${id}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Deletes an MCQ question by its ID.
+ * @param id The document ID of the MCQ to delete.
+ */
+export const deleteMcq = async (id: string): Promise<void> => {
+  if (!id) throw new Error("MCQ ID is required for deletion.");
+  const mcqRef = doc(mcqsCollection, id);
+  try {
+    await deleteDoc(mcqRef);
+    console.log(`MCQ ${id} deleted successfully.`);
+  } catch (error) {
+    console.error(`Error deleting MCQ ${id}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Deletes multiple MCQ questions by their IDs using a batch write.
+ * @param ids An array of document IDs to delete.
+ */
+export const deleteMultipleMcqs = async (ids: string[]): Promise<void> => {
+    if (!ids || ids.length === 0) {
+        console.log("No MCQ IDs provided for deletion.");
+        return;
+    }
+    const batch = writeBatch(db);
+    ids.forEach((id) => {
+        const mcqRef = doc(mcqsCollection, id);
+        batch.delete(mcqRef);
+    });
+
+    try {
+        await batch.commit();
+        console.log(`Successfully deleted ${ids.length} MCQs.`);
+    } catch (error) {
+        console.error(`Error deleting multiple MCQs:`, error);
+        throw error;
+    }
+};
+
+/**
+ * Fetches a specified number of random MCQ questions.
+ * NOTE: Firestore does not natively support random sampling efficiently at scale.
+ * This implementation fetches ALL documents and samples locally.
+ * For large datasets, consider alternative strategies (e.g., using random IDs, Cloud Functions).
+ *
+ * @param count The number of random questions to fetch.
+ * @returns An array of random Question objects.
+ */
+export const getRandomMcqs = async (count: number): Promise<Question[]> => {
+  if (count <= 0) return [];
+  try {
+    const allMcqs = await getAllMcqs(); // Fetch all MCQs
+    if (allMcqs.length <= count) {
+      // If requested count is >= total MCQs, return all shuffled
+      return shuffleArray(allMcqs);
+    }
+
+    // Shuffle the fetched MCQs and take the required count
+    const shuffledMcqs = shuffleArray(allMcqs);
+    return shuffledMcqs.slice(0, count);
+
+  } catch (error) {
+    console.error('Error getting random MCQs:', error);
+    throw error;
+  }
+};
+
+// Helper function to shuffle an array (Fisher-Yates algorithm)
+const shuffleArray = (array: any[]) => {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]]; // Swap elements
+  }
+  return array;
+};

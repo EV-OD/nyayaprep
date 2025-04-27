@@ -61,6 +61,13 @@ This is a Next.js application designed for BALLB (Bachelor of Arts, Bachelor of 
             *   `askedAt` (Ascending)
         *   Query scope: Collection
 
+    *   **Index 4 (for Admin MCQ Management - Ordered by Date):**
+        *   Collection ID: `mcqs`
+        *   Fields to index:
+            *   `createdAt` (Descending)
+        *   Query scope: Collection
+        *   *(Note: If you plan to filter MCQs by category and order by date simultaneously, you might need a composite index on `category` and `createdAt`.)*
+
     *Failure to create these indexes will result in runtime errors when fetching data.*
 
 5.  **Run the development server:**
@@ -76,17 +83,17 @@ This is a Next.js application designed for BALLB (Bachelor of Arts, Bachelor of 
 
 ## Key Features
 
-*   **MCQ Quiz System:** Practice questions one at a time with navigation.
+*   **MCQ Quiz System:** Practice questions one at a time with navigation. Fetches random questions from Firestore.
 *   **User Authentication:** Register and Login using Firebase Auth.
 *   **Role-Based Access:** Separate dashboards and permissions for regular users and administrators.
 *   **Subscription Plans:** Free, Basic, and Premium tiers with varying features and limits.
-*   **Manual Validation:** Admins manually validate paid user accounts.
-*   **Admin Panel:** Manage MCQs (CRUD), view users, and manage subscriptions.
-*   **User Dashboard:** View profile, subscription status, recent quiz results (Premium), access resources (Premium), and ask questions to teachers (Basic/Premium).
-*   **Ask a Teacher:** Users can submit questions, and admins/teachers can answer them. Limits based on subscription.
+*   **Manual Validation:** Admins manually validate paid user accounts via the admin panel.
+*   **Admin Panel:** Manage MCQs (Add, Edit, View, Delete), view users, manage subscriptions, and answer user questions.
+*   **User Dashboard:** View profile, subscription status, recent quiz results (Premium), access resources (Premium), and ask questions to teachers (Basic/Premium) with daily limits. View answers and notifications.
+*   **Ask a Teacher:** Users can submit questions, and admins/teachers can answer them. Limits based on subscription. Notifications for answers.
 *   **Responsive Design:** Adapts to different screen sizes.
 *   **(Future) Real-time Translation:** Switch between English and Nepali (using a mock service currently).
-*   **(Future) Profile Picture Upload:** Allow users to upload profile pictures.
+*   **(Future) Profile Picture Upload:** Allow users to upload profile pictures (storage integration needed).
 
 ## Technologies Used
 
@@ -100,4 +107,4 @@ This is a Next.js application designed for BALLB (Bachelor of Arts, Bachelor of 
 
 ## Deployment
 
-Refer to the [Next.js deployment documentation](https://nextjs.org/docs/deployment) for details on deploying your application. You can use platforms like Vercel, Netlify, or Firebase Hosting. Remember to configure environment variables in your deployment environment.
+Refer to the [Next.js deployment documentation](https://nextjs.org/docs/deployment) for details on deploying your application. You can use platforms like Vercel, Netlify, or Firebase Hosting. Remember to configure environment variables and Firestore indexes in your deployment environment.
