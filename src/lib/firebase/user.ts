@@ -1,6 +1,6 @@
 
 import { db, auth } from './config';
-import {
+import  {
   collection,
   doc,
   setDoc,
@@ -21,7 +21,27 @@ import {
   QueryDocumentSnapshot,
   DocumentData,
 } from 'firebase/firestore';
-import type { UserProfile, QuizResult, SubscriptionPlan, TeacherQuestion } from '@/types/user';
+
+
+export type SubscriptionPlan = 'free' | 'basic' | 'premium';
+export type UserProfile = {
+    uid: string;
+    email: string;
+    name?: string | null;
+    phone?: string | null;
+    role: 'user' | 'admin';
+    subscription: SubscriptionPlan;
+    profilePicture?: string | null;
+    createdAt: Timestamp;
+    validated: boolean;
+    expiryDate: Timestamp | null; // Subscription expiry date
+    askTeacherCount: number;
+    lastAskTeacherDate: Timestamp;
+    quizCountToday: number;
+    lastQuizDate: Timestamp;
+    unreadNotifications: number;
+    lastNotificationCheck: Timestamp;
+};
 import type { Question, Answer } from '@/types/quiz'; // Import Question and Answer types
 import type { User } from 'firebase/auth';
 import { isToday } from 'date-fns'; // Import isToday
@@ -119,6 +139,45 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
     throw error;
   }
 };
+
+/**
+ * Updates a user profile document in Firestore.
+ * @param userId The user's unique ID.
+ * @param data The data to update in the user profile.
+ * @throws Error if the user ID is missing, or if the subscription is invalid.
+ */
+
+export type CreateUserParams = {
+    name?: string | null;
+    phone?: string | null;
+    subscription?: SubscriptionPlan;
+    profilePicture?: string | null;
+};
+export const updateUserProfileDocument = async (
+    userId: string,
+    data: Partial<UserProfile>
+): Promise<void> => {
+    if (!userId) {
+        throw new Error("User ID is required.");
+    }
+
+    // Validate subscription if it's being updated
+    if (data.subscription && !['free', 'basic', 'premium'].includes(data.subscription)) {
+        throw new Error(`Invalid subscription type: ${data.subscription}`);
+    }
+
+    const userRef = doc(usersCollection, userId);
+    try {
+        await updateDoc(userRef, data);
+        console.log(`User profile updated successfully for UID: ${userId}`);
+    } catch (error) {
+        console.error("Error updating user profile document:", error);
+        throw error;
+    }
+};
+
+
+
 
 /**
  * Checks if a user's subscription has expired and updates their status if needed.
