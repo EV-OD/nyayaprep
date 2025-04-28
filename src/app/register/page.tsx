@@ -52,6 +52,15 @@ function RegisterFormComponent() {
   const planFromUrl = searchParams.get('plan') as SubscriptionPlan | null;
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null); // For image preview
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      setCurrentUser(user);
+
+    });
+    return () => unsubscribe();
+  }, [router]);
 
   useEffect(() => {
     if (planFromUrl && allowedPlans.includes(planFromUrl)) {
@@ -168,6 +177,22 @@ function RegisterFormComponent() {
           </div>
       );
    }
+
+    if(currentUser){
+        router.push(`/payment?plan=${selectedPlan}`);
+        return(
+            <div className="flex flex-col min-h-screen">
+            <PublicNavbar />
+            <div className="flex flex-1 items-center justify-center bg-gradient-to-br from-background to-muted/50 p-4">
+               <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+            <footer className="py-4 text-center text-muted-foreground text-sm bg-background border-t">
+               NyayaPrep &copy; {new Date().getFullYear()}
+            </footer>
+         </div>
+        )
+    }
+
 
   return (
     <div className="flex flex-col min-h-screen">
