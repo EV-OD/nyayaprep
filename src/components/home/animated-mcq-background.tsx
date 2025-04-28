@@ -50,8 +50,8 @@ export function AnimatedMcqBackground() {
             top: pos.top,
             left: pos.left,
             animationDelay: pos.animationDelay,
-            // Add slight random rotation for uniqueness (optional)
-             transform: `rotate(${Math.random() * 6 - 3}deg)`,
+            // Remove random rotation to fix hydration error
+            // transform: `rotate(${Math.random() * 6 - 3}deg)`,
           }}
         />
       ))}
