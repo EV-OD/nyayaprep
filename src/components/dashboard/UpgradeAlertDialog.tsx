@@ -1,5 +1,4 @@
-
-import type * as React from 'react';
+import * as React from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -63,3 +62,4 @@ export function UpgradeAlertDialog({
     </AlertDialog>
   );
 }
+
