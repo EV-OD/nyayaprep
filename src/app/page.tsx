@@ -35,31 +35,39 @@ export default function Home() {
        {/* Hero Section */}
        <main className="flex-1">
          <section className="relative py-20 md:py-32 lg:py-40 flex items-center justify-center text-center px-4 overflow-hidden">
-            {/* Background decorative elements */}
-            <div className="absolute inset-0 z-0 opacity-10 dark:opacity-5">
-                <div className="absolute top-0 left-0 w-64 h-64 bg-primary/30 rounded-full filter blur-3xl"></div>
-                <div className="absolute bottom-0 right-0 w-72 h-72 bg-teal-500/30 rounded-full filter blur-3xl"></div>
-                <div className="absolute top-1/4 left-1/4 w-48 h-48 bg-blue-400/20 rounded-full filter blur-2xl animate-pulse delay-500"></div>
+            {/* Background decorative elements - Enhanced */}
+            <div className="absolute inset-0 z-0 opacity-15 dark:opacity-10">
+                {/* Larger blurred circles */}
+                <div className="absolute -top-20 -left-20 w-72 h-72 bg-primary/20 rounded-full filter blur-3xl animate-pulse"></div>
+                <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-teal-500/20 rounded-full filter blur-3xl animate-pulse animation-delay-400"></div>
+                {/* Subtle pattern/texture - Example using radial gradient */}
+                <div
+                    className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(128,128,128,0.05)_0%,_rgba(128,128,128,0)_70%)] opacity-50"
+                    style={{ backgroundSize: '40px 40px' }}
+                ></div>
+                 {/* Adding a subtle grid pattern */}
+                 <div className="absolute inset-0 opacity-30 bg-[linear-gradient(to_right,theme(colors.border/0.1)_1px,transparent_1px),linear-gradient(to_bottom,theme(colors.border/0.1)_1px,transparent_1px)] bg-[size:4rem_4rem]"></div>
             </div>
 
             <div className="relative z-10 max-w-4xl mx-auto">
-                <h1 className="text-4xl font-extrabold tracking-tight text-primary sm:text-5xl md:text-6xl lg:text-7xl leading-tight">
+                <h1 className="text-4xl font-extrabold tracking-tight text-primary sm:text-5xl md:text-6xl lg:text-7xl leading-tight drop-shadow-lg">
                  NyayaPrep
                 </h1>
-                <p className="mt-4 text-lg text-foreground/80 sm:text-xl md:text-2xl max-w-2xl mx-auto">
-                 Your ultimate platform for Law entrance and licensing exam preparation. Master BALLB Entrance, Advocate License, and LLB Entrance exams with our comprehensive tools.
+                {/* Shortened and restyled description */}
+                <p className="mt-6 text-xl font-medium text-foreground/90 sm:text-2xl md:text-3xl max-w-2xl mx-auto drop-shadow-sm">
+                  Master Law Exams. <span className="text-primary">Practice MCQs</span>, Track Progress, Succeed.
                 </p>
-                <p className="mt-6 text-base italic text-muted-foreground max-w-lg mx-auto">
+                <p className="mt-4 text-base italic text-muted-foreground max-w-lg mx-auto">
                  "Study Smarter. Practice Harder. Achieve Greater."
                 </p>
                 <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
                  <Link href="/quiz" passHref>
-                    <Button size="lg" className="w-full sm:w-auto shadow-lg hover:shadow-primary/30 transition-shadow duration-300">
+                    <Button size="lg" className="w-full sm:w-auto shadow-lg hover:shadow-primary/30 transition-shadow duration-300 transform hover:-translate-y-0.5">
                         <BrainCircuit className="mr-2 h-5 w-5" /> Start Quiz Now
                     </Button>
                  </Link>
                  <Link href="/pricing" passHref>
-                    <Button size="lg" variant="outline" className="w-full sm:w-auto shadow-sm hover:shadow-md transition-shadow duration-300">
+                    <Button size="lg" variant="outline" className="w-full sm:w-auto shadow-sm hover:shadow-md transition-shadow duration-300 border-primary/50 hover:bg-primary/5 transform hover:-translate-y-0.5">
                         <DollarSign className="mr-2 h-5 w-5" /> View Plans
                     </Button>
                  </Link>
@@ -101,12 +109,12 @@ export default function Home() {
                  </p>
                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
                       <Link href="/quiz" passHref>
-                         <Button size="lg" variant="secondary" className="w-full sm:w-auto shadow-lg hover:shadow-white/20 transition-shadow duration-300">
+                         <Button size="lg" variant="secondary" className="w-full sm:w-auto shadow-lg hover:shadow-white/20 transition-shadow duration-300 transform hover:-translate-y-0.5">
                              <BrainCircuit className="mr-2 h-5 w-5" /> Take a Free Quiz
                          </Button>
                       </Link>
                      <Link href="/pricing" passHref>
-                         <Button size="lg" variant="outline" className="w-full sm:w-auto bg-white/10 border-white/50 text-white hover:bg-white/20 hover:border-white transition-colors duration-300">
+                         <Button size="lg" variant="outline" className="w-full sm:w-auto bg-white/10 border-white/50 text-white hover:bg-white/20 hover:border-white transition-colors duration-300 transform hover:-translate-y-0.5">
                              <UserPlus className="mr-2 h-5 w-5" /> Get Started
                          </Button>
                       </Link>
