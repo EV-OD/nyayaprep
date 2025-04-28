@@ -35,21 +35,21 @@ export default function Home() {
        {/* Hero Section */}
        <main className="flex-1">
          <section className="relative py-20 md:py-32 lg:py-40 flex items-center justify-center text-center px-4 overflow-hidden">
-            {/* Background decorative elements - Enhanced */}
-            <div className="absolute inset-0 z-0 opacity-15 dark:opacity-10">
+            {/* Background decorative elements - Enhanced & More Visible */}
+            <div className="absolute inset-0 z-0 opacity-25 dark:opacity-15"> {/* Increased opacity */}
                 {/* Larger blurred circles (blobs) */}
                 <div className="absolute -top-20 -left-20 w-72 h-72 bg-primary/20 rounded-full filter blur-3xl animate-pulse"></div>
                 <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-teal-500/20 rounded-full filter blur-3xl animate-pulse animation-delay-400"></div>
                 {/* Subtle dot pattern - Example */}
                 <div
-                    className="absolute inset-0 opacity-30"
+                    className="absolute inset-0 opacity-50" // Increased opacity
                     style={{
-                        backgroundImage: 'radial-gradient(hsl(var(--muted-foreground)/0.1) 1px, transparent 1px)',
+                        backgroundImage: 'radial-gradient(hsl(var(--muted-foreground)/0.15) 1px, transparent 1px)', // Increased alpha
                         backgroundSize: '10px 10px'
                      }}
                  ></div>
                  {/* Adding a subtle grid pattern */}
-                 <div className="absolute inset-0 opacity-30 bg-[linear-gradient(to_right,theme(colors.border/0.1)_1px,transparent_1px),linear-gradient(to_bottom,theme(colors.border/0.1)_1px,transparent_1px)] bg-[size:4rem_4rem]"></div>
+                 <div className="absolute inset-0 opacity-50 bg-[linear-gradient(to_right,theme(colors.border/0.15)_1px,transparent_1px),linear-gradient(to_bottom,theme(colors.border/0.15)_1px,transparent_1px)] bg-[size:4rem_4rem]"></div> {/* Increased alpha */}
                  {/* Another Animated Blob */}
                  <div className="absolute top-1/4 right-1/4 w-60 h-60 bg-secondary/20 rounded-full filter blur-2xl animate-pulse animation-delay-200"></div>
             </div>
@@ -154,11 +154,3 @@ export default function Home() {
     </div>
   );
 }
-
-// Dummy pages for footer links (replace with actual pages later)
-// const AboutPage = () => <div className="p-10 text-center">About Page Content</div>;
-// const ContactPage = () => <div className="p-10 text-center">Contact Page Content</div>;
-// const PrivacyPage = () => <div className="p-10 text-center">Privacy Policy Content</div>;
-// You would create actual files like src/app/about/page.tsx etc.
-
-    
