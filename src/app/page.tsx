@@ -36,23 +36,24 @@ export default function Home() {
        <main className="flex-1">
          <section className="relative py-20 md:py-32 lg:py-40 flex items-center justify-center text-center px-4 overflow-hidden">
             {/* Background decorative elements - Enhanced & More Visible */}
-            <div className="absolute inset-0 z-0 opacity-50 dark:opacity-30"> {/* Increased opacity */}
-                {/* Larger blurred circles (blobs) */}
-                <div className="absolute -top-20 -left-20 w-72 h-72 bg-primary/30 rounded-full filter blur-3xl animate-pulse"></div> {/* Slightly increased blob opacity */}
+            {/* Increased overall container opacity */}
+            <div className="absolute inset-0 z-0 opacity-60 dark:opacity-40">
+                {/* Larger blurred circles (blobs) with increased opacity */}
+                <div className="absolute -top-20 -left-20 w-72 h-72 bg-primary/30 rounded-full filter blur-3xl animate-pulse"></div>
                 {/* Adjusted bottom-right blob position */}
-                <div className="absolute bottom-10 right-10 w-64 h-64 bg-teal-500/30 rounded-full filter blur-3xl animate-pulse animation-delay-400"></div> {/* Moved inward, slightly smaller */}
-                {/* Subtle dot pattern - Example */}
+                <div className="absolute bottom-10 right-10 w-64 h-64 bg-teal-500/30 rounded-full filter blur-3xl animate-pulse animation-delay-400"></div>
+                {/* Subtle dot pattern - Increased opacity */}
                 <div
-                    className="absolute inset-0 opacity-50" // Increased opacity
+                    className="absolute inset-0 opacity-50" // Increased opacity for dots
                     style={{
-                        backgroundImage: 'radial-gradient(hsl(var(--muted-foreground)/0.15) 1px, transparent 1px)', // Increased alpha
+                        backgroundImage: 'radial-gradient(hsl(var(--muted-foreground)/0.15) 1px, transparent 1px)', // Increased alpha for dots
                         backgroundSize: '10px 10px'
                      }}
                  ></div>
-                 {/* Adding a subtle grid pattern */}
-                 <div className="absolute inset-0 opacity-50 bg-[linear-gradient(to_right,theme(colors.border/0.15)_1px,transparent_1px),linear-gradient(to_bottom,theme(colors.border/0.15)_1px,transparent_1px)] bg-[size:4rem_4rem]"></div> {/* Increased alpha */}
-                 {/* Another Animated Blob */}
-                 <div className="absolute top-1/4 right-1/4 w-60 h-60 bg-secondary/30 rounded-full filter blur-2xl animate-pulse animation-delay-200"></div> {/* Slightly increased blob opacity */}
+                 {/* Adding a subtle grid pattern - Increased alpha */}
+                 <div className="absolute inset-0 opacity-50 bg-[linear-gradient(to_right,theme(colors.border/0.2)_1px,transparent_1px),linear-gradient(to_bottom,theme(colors.border/0.2)_1px,transparent_1px)] bg-[size:4rem_4rem]"></div> {/* Increased alpha for grid */}
+                 {/* Another Animated Blob with increased opacity */}
+                 <div className="absolute top-1/4 right-1/4 w-60 h-60 bg-secondary/30 rounded-full filter blur-2xl animate-pulse animation-delay-200"></div>
             </div>
 
             <div className="relative z-10 max-w-4xl mx-auto">
