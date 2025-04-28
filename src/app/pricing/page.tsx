@@ -102,13 +102,8 @@ export default function PricingPage() {
 
     if (currentUser) {
         // User is logged in
-        if (planId === 'free') {
-            // Redirect to dashboard if already logged in and tries to select free
-            router.push('/dashboard');
-        } else {
-            // Direct logged-in users (even if already on a paid plan) to payment page for upgrade/renewal
-            router.push(`/payment?plan=${planId}`);
-        }
+        // Always direct logged-in users to payment page for upgrade/renewal
+        router.push(`/payment?plan=${planId}`);
     } else {
         // User is not logged in
         // Redirect to the register page, passing the selected plan
@@ -190,7 +185,7 @@ export default function PricingPage() {
                     <Button
                       className={cn('w-full', plan.highlight && !isCurrentPlan ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'bg-secondary hover:bg-secondary/80 text-secondary-foreground', isCurrentPlan ? 'bg-blue-500 hover:bg-blue-600 text-white cursor-not-allowed' : '')}
                       size="lg"
-                      onClick={() => handleSelectPlan(plan.planId)} // Only call handler if not current plan
+                      onClick={() => !isCurrentPlan && handleSelectPlan(plan.planId)} // Only call handler if not current plan
                       disabled={isCurrentPlan} // Disable button for current plan
                     >
                       {ctaText}
@@ -223,3 +218,4 @@ export default function PricingPage() {
     </div>
   );
 }
+
