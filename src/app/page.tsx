@@ -37,16 +37,21 @@ export default function Home() {
          <section className="relative py-20 md:py-32 lg:py-40 flex items-center justify-center text-center px-4 overflow-hidden">
             {/* Background decorative elements - Enhanced */}
             <div className="absolute inset-0 z-0 opacity-15 dark:opacity-10">
-                {/* Larger blurred circles */}
+                {/* Larger blurred circles (blobs) */}
                 <div className="absolute -top-20 -left-20 w-72 h-72 bg-primary/20 rounded-full filter blur-3xl animate-pulse"></div>
                 <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-teal-500/20 rounded-full filter blur-3xl animate-pulse animation-delay-400"></div>
-                {/* Subtle pattern/texture - Example using radial gradient */}
+                {/* Subtle dot pattern - Example */}
                 <div
-                    className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(128,128,128,0.05)_0%,_rgba(128,128,128,0)_70%)] opacity-50"
-                    style={{ backgroundSize: '40px 40px' }}
-                ></div>
+                    className="absolute inset-0 opacity-30"
+                    style={{
+                        backgroundImage: 'radial-gradient(hsl(var(--muted-foreground)/0.1) 1px, transparent 1px)',
+                        backgroundSize: '10px 10px'
+                     }}
+                 ></div>
                  {/* Adding a subtle grid pattern */}
                  <div className="absolute inset-0 opacity-30 bg-[linear-gradient(to_right,theme(colors.border/0.1)_1px,transparent_1px),linear-gradient(to_bottom,theme(colors.border/0.1)_1px,transparent_1px)] bg-[size:4rem_4rem]"></div>
+                 {/* Another Animated Blob */}
+                 <div className="absolute top-1/4 right-1/4 w-60 h-60 bg-secondary/20 rounded-full filter blur-2xl animate-pulse animation-delay-200"></div>
             </div>
 
             <div className="relative z-10 max-w-4xl mx-auto">
@@ -101,8 +106,18 @@ export default function Home() {
          </section>
 
          {/* Call to Action Section */}
-         <section className="py-16 md:py-24 bg-gradient-to-r from-primary/80 to-teal-600/80 text-primary-foreground px-4">
-             <div className="container mx-auto max-w-4xl text-center">
+         <section className="py-16 md:py-24 bg-gradient-to-r from-primary/80 to-teal-600/80 text-primary-foreground px-4 relative overflow-hidden">
+             {/* Adding subtle patterns to CTA */}
+              <div className="absolute inset-0 z-0 opacity-10">
+                 <div
+                     className="absolute inset-0 opacity-50"
+                     style={{
+                         backgroundImage: 'radial-gradient(currentColor 1px, transparent 1px)',
+                         backgroundSize: '15px 15px'
+                      }}
+                  ></div>
+              </div>
+             <div className="container mx-auto max-w-4xl text-center relative z-10">
                  <h2 className="text-3xl font-bold mb-4">Ready to Ace Your Law Exams?</h2>
                  <p className="text-lg opacity-90 mb-8 max-w-xl mx-auto">
                      Join NyayaPrep today and take the first step towards your legal career. Start practicing or choose a plan that fits your needs.
@@ -141,7 +156,9 @@ export default function Home() {
 }
 
 // Dummy pages for footer links (replace with actual pages later)
-const AboutPage = () => <div className="p-10 text-center">About Page Content</div>;
-const ContactPage = () => <div className="p-10 text-center">Contact Page Content</div>;
-const PrivacyPage = () => <div className="p-10 text-center">Privacy Policy Content</div>;
+// const AboutPage = () => <div className="p-10 text-center">About Page Content</div>;
+// const ContactPage = () => <div className="p-10 text-center">Contact Page Content</div>;
+// const PrivacyPage = () => <div className="p-10 text-center">Privacy Policy Content</div>;
 // You would create actual files like src/app/about/page.tsx etc.
+
+    
