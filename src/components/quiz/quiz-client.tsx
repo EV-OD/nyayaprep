@@ -12,9 +12,8 @@ import { Progress } from '@/components/ui/progress';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ReviewAnswersDialog } from './review-answers-dialog';
-import { Loader2, Languages, ArrowLeft, ArrowRight, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Languages, ArrowLeft, ArrowRight, CheckCircle, XCircle, Repeat, ListChecks, LayoutDashboard, Trophy } from 'lucide-react'; // Added Repeat, ListChecks, LayoutDashboard, Trophy
 import { translateText } from '@/services/translation'; // Assuming this service exists
-// import { auth } from '@/lib/firebase/config'; // No longer needed here, userId passed as prop
 import { saveQuizResult } from '@/lib/firebase/firestore'; // Import firestore function
 import type { QuizResult } from '@/types/user';
 import { useRouter } from 'next/navigation'; // For redirecting after submit
@@ -36,18 +35,9 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
   const [isSubmitting, setIsSubmitting] = useState(false); // Loading state for submission
   const [finalAnswers, setFinalAnswers] = useState<Answer[]>([]); // Will store answers with text
   const [showReview, setShowReview] = useState(false);
-  // const [currentUserId, setCurrentUserId] = useState<string | null>(null); // No longer needed, use prop
 
   const { toast } = useToast();
-  const router = useRouter(); // Initialize router
-
-  // Get current user ID - Removed, use userId prop instead
-  // useEffect(() => {
-  //   const unsubscribe = auth.onAuthStateChanged(user => {
-  //     setCurrentUserId(user ? user.uid : null);
-  //   });
-  //   return () => unsubscribe();
-  // }, []);
+  const router = useRouter();
 
 
   const currentQuestion = questions[currentQuestionIndex];
@@ -104,7 +94,7 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
 
   const handlePrevious = () => {
     if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
+      setCurrentQuestionIndex(currentQuestionIndex - 1); // Corrected: Decrement index
     }
   };
 
@@ -159,9 +149,7 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
           title: "Quiz Submitted!",
           description: `Your result: ${finalScore}/${totalQuestions} (${percentage}%). It has been saved.`,
         });
-        // !! Removed automatic redirect !!
-        // router.push('/dashboard'); // <-- REMOVED
-
+        // Redirect is now handled based on usage limit in the quiz page itself
       } catch (error) {
         console.error("Failed to save quiz result:", error);
         toast({
@@ -191,65 +179,78 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
   // --- Memoized values for performance ---
   const currentQuestionTextMemo = useMemo(() => getTranslatedText(currentQuestion?.question), [currentQuestion, language, translations]);
   const currentOptions = useMemo(() => getTranslatedOptions(currentQuestion?.options), [currentQuestion, language, translations]);
-  // currentCorrectAnswer is calculated inside handleSubmit now
 
   // --- Render Logic ---
 
   if (quizFinished) {
-    // Result display remains the same
+    // Improved Result Display
+    const percentage = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
+    const performanceMessage = percentage >= 70 ? "Excellent work!" : percentage >= 50 ? "Good effort, keep practicing!" : "Keep practicing to improve!";
+
     return (
-      <div className="flex flex-col items-center justify-center flex-1 w-full p-6 md:p-8">
-        <Card className="w-full max-w-md text-center p-6 md:p-8 rounded-xl shadow-lg border">
-          <CardHeader>
-            <CardTitle className="text-3xl font-bold text-primary mb-2">Quiz Completed!</CardTitle>
-            <CardDescription className="text-lg text-foreground/80">
-              Your Score: <span className="font-semibold text-foreground">{score} / {totalQuestions}</span>
-               ({totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0}%)
+      <div className="flex flex-col items-center justify-center flex-1 w-full p-4 md:p-8">
+        <Card className="w-full max-w-lg text-center p-6 md:p-10 rounded-xl shadow-lg border bg-card">
+          <CardHeader className="mb-4">
+             <Trophy className="mx-auto h-12 w-12 text-yellow-500 mb-3" />
+            <CardTitle className="text-3xl font-bold text-primary">Quiz Completed!</CardTitle>
+            <CardDescription className="text-base text-muted-foreground mt-1">
+               Here's how you performed:
             </CardDescription>
-             <Progress value={totalQuestions > 0 ? (score / totalQuestions) * 100 : 0} className="w-full mt-4 h-2" />
           </CardHeader>
-          <CardContent>
-            <p className="mb-6 text-muted-foreground">
-               {totalQuestions > 0 && (score / totalQuestions) > 0.7 ? "Great job!" : "Keep practicing!"}
-               {!userId && " Log in or register to save your results."}
-            </p>
-          </CardContent>
-          <CardFooter className="flex flex-col sm:flex-row justify-center gap-3">
-            <Button onClick={restartQuiz} variant="outline" size="lg">
-              Take Another Quiz
-            </Button>
-             <Button onClick={() => setShowReview(true)} size="lg">Review Answers</Button>
-             {userId && (
-                 // Changed this button to navigate to dashboard explicitly
-                 <Button onClick={() => router.push('/dashboard')} variant="secondary" size="lg">Go to Dashboard</Button>
+          <CardContent className="mb-6 space-y-4">
+             <div className="text-4xl font-bold text-foreground">
+               {score} / {totalQuestions}
+             </div>
+             <div className="text-lg font-medium text-foreground/80">
+                ({percentage}%)
+             </div>
+             <Progress value={percentage} className="w-full h-2.5 mt-2" />
+             <p className="mt-4 text-lg text-muted-foreground">{performanceMessage}</p>
+             {!userId && (
+                <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
+                   Log in or register to save your results and track progress.
+                </p>
              )}
+          </CardContent>
+          <CardFooter className="flex flex-col sm:flex-row justify-center gap-3 flex-wrap">
+            <Button onClick={restartQuiz} variant="outline" size="lg" className="flex-1 min-w-[150px]">
+               <Repeat className="mr-2 h-4 w-4" /> Take Another Quiz
+            </Button>
+            <Button onClick={() => setShowReview(true)} size="lg" className="flex-1 min-w-[150px]">
+               <ListChecks className="mr-2 h-4 w-4" /> Review Answers
+            </Button>
+            {userId && (
+                <Button onClick={() => router.push('/dashboard')} variant="secondary" size="lg" className="flex-1 min-w-[150px]">
+                    <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
+                </Button>
+            )}
           </CardFooter>
         </Card>
-         <ReviewAnswersDialog
+        <ReviewAnswersDialog
             isOpen={showReview}
             onClose={() => setShowReview(false)}
-            answers={finalAnswers} // Pass the detailed final answers
-            questions={questions} // Pass original questions for reference if needed
-            language={language} // Pass the language used during the quiz
-          />
+            answers={finalAnswers}
+            questions={questions}
+            language={language}
+         />
       </div>
     );
   }
 
+  // Quiz Interface
   return (
     <div className="flex flex-col items-center justify-center flex-1 w-full p-4 md:p-8">
       <Card className="w-full max-w-2xl rounded-xl shadow-lg border overflow-hidden">
         <CardHeader className="p-6 bg-muted/30 border-b">
            <div className="flex justify-between items-center mb-3">
             <CardDescription className="text-sm font-medium text-primary">
-               {/* Ensure category is handled correctly */}
                {currentQuestion?.category || 'General'}
             </CardDescription>
              <Button
               variant="ghost"
               size="sm"
               onClick={handleTranslate}
-              disabled={isTranslating || isSubmitting} // Disable during translation/submission
+              disabled={isTranslating || isSubmitting}
               className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
             >
               {isTranslating ? (
@@ -261,7 +262,6 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
             </Button>
           </div>
           <CardTitle className="text-xl md:text-2xl font-semibold leading-tight">
-             {/* Add loading state for question text if needed */}
              {`Q${currentQuestionIndex + 1}: ${currentQuestionTextMemo || 'Loading...'}`}
           </CardTitle>
            <Progress value={progress} className="w-full mt-4 h-1.5" />
@@ -273,9 +273,8 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
             onValueChange={handleOptionSelect}
             className="space-y-4"
             aria-label="Choose an answer"
-            disabled={isSubmitting} // Disable options during submission
+            disabled={isSubmitting}
           >
-             {/* Add check for currentOptions before mapping */}
              {currentOptions && currentOptions.length > 0 ? currentOptions.map((option, index) => (
               <div key={index} className="flex items-center space-x-3 p-4 rounded-lg border border-input bg-background hover:bg-accent/50 transition-colors has-[:checked]:bg-accent has-[:checked]:border-primary has-[:checked]:ring-1 has-[:checked]:ring-primary">
                 <RadioGroupItem
@@ -321,7 +320,7 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
                      variant="default"
                      aria-label="Submit Quiz"
                      className="bg-primary hover:bg-primary/90"
-                     disabled={isSubmitting} // Disable submit button during submission
+                     disabled={isSubmitting}
                    >
                      {isSubmitting ? (
                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -357,31 +356,28 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
         variant="link"
         className="mt-6 text-muted-foreground hover:text-primary"
         onClick={() => setShowReview(true)}
-        disabled={!Object.keys(selectedAnswers).length || isSubmitting} // Disable during submission
+        disabled={!Object.keys(selectedAnswers).length || isSubmitting}
       >
         Review Answers
       </Button>
         <ReviewAnswersDialog
-          isOpen={showReview && !quizFinished} // Only show review in-progress if not finished
+          isOpen={showReview && !quizFinished}
           onClose={() => setShowReview(false)}
-          // Calculate provisional answers for review dialog (using only selected text)
           answers={Object.entries(selectedAnswers).map(([qId, selAns]) => {
              const question = questions.find(q => q.id === qId);
-             // Ensure we get the correct answer text in the *current* review language
              const correctAnsText = question?.correctAnswer?.[language] || '';
-             // Ensure we get the question text in the *current* review language
              const questionTextInReviewLang = question?.question?.[language] || '';
              const isCorrect = !!question && !!selAns && correctAnsText === selAns;
              return {
                questionId: qId,
-               questionText: questionTextInReviewLang, // Use question text in review language
+               questionText: questionTextInReviewLang,
                selectedAnswer: selAns,
-               correctAnswerText: correctAnsText, // Use correct answer text in review language
+               correctAnswerText: correctAnsText,
                isCorrect: isCorrect
              };
            })}
           questions={questions}
-          language={language} // Pass current review language
+          language={language}
         />
     </div>
   );
