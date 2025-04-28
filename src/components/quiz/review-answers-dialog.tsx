@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -36,14 +35,15 @@ export function ReviewAnswersDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col"> {/* Use flex column */}
         <DialogHeader>
           <DialogTitle>Review Your Answers</DialogTitle>
           <DialogDescription>
             Check your selections or review your final results.
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="flex-grow border rounded-md my-4 max-h-[60vh] min-h-[30vh]">
+        {/* Make ScrollArea flexible and define its height */}
+        <ScrollArea className="flex-grow my-4 border rounded-md min-h-[300px] max-h-[calc(80vh-150px)]"> {/* Allow ScrollArea to grow and set max-height */}
           <div className="p-4 space-y-4">
             {questions.map((question, index) => {
               const userAnswer = answers.find(a => a.questionId === question.id);
@@ -54,34 +54,41 @@ export function ReviewAnswersDialog({
               const isAnswered = userAnswer && userAnswer.selectedAnswer !== "Not Answered";
 
               return (
-                <div key={question.id} className="p-4 border rounded-lg bg-card">
+                <div key={question.id} className="p-4 border rounded-lg bg-card shadow-sm"> {/* Added shadow */}
                   <p className="font-semibold mb-2 text-sm">
                     {`Q${index + 1}: ${questionText}`}
                   </p>
-                  <div className="text-xs space-y-1">
+                  <div className="text-xs space-y-1.5"> {/* Increased spacing slightly */}
                     {isAnswered ? (
                       <>
                         <p className={cn(
-                            "flex items-center gap-1",
+                            "flex items-start gap-1.5", // Use start alignment and gap
                             isCorrect ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                           )}>
-                           {isCorrect ? <CheckCircle size={14} /> : <XCircle size={14} />}
-                           Your Answer: <span className="font-medium">{selectedAnswerText}</span>
+                           {isCorrect ? <CheckCircle size={14} className="mt-0.5 shrink-0" /> : <XCircle size={14} className="mt-0.5 shrink-0" />}
+                           <span className="font-medium">Your Answer:</span> <span className="flex-1">{selectedAnswerText}</span> {/* Use flex-1 */}
                         </p>
                          {/* Show correct answer only if the selected one was wrong */}
                          {!isCorrect && (
-                           <p className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                              <CheckCircle size={14} /> Correct Answer: <span className="font-medium">{correctAnswerText}</span>
+                           <p className="flex items-start gap-1.5 text-green-600 dark:text-green-400"> {/* Use start alignment and gap */}
+                              <CheckCircle size={14} className="mt-0.5 shrink-0" />
+                              <span className="font-medium">Correct Answer:</span> <span className="flex-1">{correctAnswerText}</span> {/* Use flex-1 */}
                            </p>
                           )}
                       </>
                     ) : (
                        // User did not answer this question
-                       <p className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
-                         <AlertCircle size={14} /> Not Answered
-                         {/* Always show the correct answer if unanswered */}
-                         <span className="ml-2 text-muted-foreground">(Correct: <span className="font-medium text-green-600 dark:text-green-400">{correctAnswerText}</span>)</span>
-                       </p>
+                       <>
+                        <p className="flex items-start gap-1.5 text-amber-600 dark:text-amber-400"> {/* Use start alignment and gap */}
+                          <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                          <span className="font-medium">Your Answer:</span> <span className="flex-1 italic">Not Answered</span> {/* Use flex-1 */}
+                        </p>
+                        {/* Always show the correct answer if unanswered */}
+                        <p className="flex items-start gap-1.5 text-green-600 dark:text-green-400"> {/* Use start alignment and gap */}
+                            <CheckCircle size={14} className="mt-0.5 shrink-0" />
+                            <span className="font-medium">Correct Answer:</span> <span className="flex-1">{correctAnswerText}</span> {/* Use flex-1 */}
+                        </p>
+                       </>
                     )}
                   </div>
                 </div>
@@ -95,7 +102,7 @@ export function ReviewAnswersDialog({
             )}
           </div>
         </ScrollArea>
-        <DialogFooter>
+        <DialogFooter className="mt-auto pt-4"> {/* Ensure footer doesn't overlap scroll */}
           <DialogClose asChild>
             <Button type="button" variant="outline">
               Close
