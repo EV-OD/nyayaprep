@@ -4,6 +4,7 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
 import type { Question, Answer, Language, TranslatedText } from '@/types/quiz';
+import type { UserProfile } from '@/types/user'; // Import UserProfile
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
@@ -12,20 +13,22 @@ import { Progress } from '@/components/ui/progress';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ReviewAnswersDialog } from './review-answers-dialog';
-import { Loader2, Languages, ArrowLeft, ArrowRight, CheckCircle, XCircle, Repeat, ListChecks, LayoutDashboard, Trophy, AlertTriangle } from 'lucide-react'; // Added Repeat, ListChecks, LayoutDashboard, Trophy, AlertTriangle
+import { Loader2, Languages, ArrowLeft, ArrowRight, CheckCircle, XCircle, Repeat, ListChecks, LayoutDashboard, Trophy, AlertTriangle, Zap, Lock } from 'lucide-react'; // Added Zap, Lock
 import { translateText } from '@/services/translation'; // Assuming this service exists
 import { saveQuizResult } from '@/lib/firebase/firestore'; // Import firestore function
 import type { QuizResult } from '@/types/user';
 import { useRouter } from 'next/navigation'; // For redirecting after submit
 import { Alert } from '../ui/alert';
+import { UpgradeAlertDialog } from '../dashboard/UpgradeAlertDialog'; // Import UpgradeAlertDialog
 
 interface QuizClientProps {
   questions: Question[];
   userId: string | null; // Receive user ID as prop
+  userProfile: UserProfile | null; // Receive user profile
   onQuizSubmit: () => Promise<void>; // Callback for after submission
 }
 
-export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps) {
+export function QuizClient({ questions, userId, userProfile, onQuizSubmit }: QuizClientProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({}); // { questionId: selectedAnswerText (in current language) }
   const [quizFinished, setQuizFinished] = useState(false);
@@ -36,13 +39,13 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
   const [isSubmitting, setIsSubmitting] = useState(false); // Loading state for submission
   const [finalAnswers, setFinalAnswers] = useState<Answer[]>([]); // Will store answers with text
   const [showReview, setShowReview] = useState(false);
+  const [showUpgradeReviewDialog, setShowUpgradeReviewDialog] = useState(false); // State for upgrade dialog
 
   const { toast } = useToast();
   const router = useRouter();
 
   // Handle the case where no questions are provided (e.g., error during fetch)
    if (!questions || questions.length === 0) {
-      // You might want to show a message here or rely on the parent component's error handling
       return (
           <div className="flex flex-1 items-center justify-center p-4 text-center">
              <Alert variant="destructive" className="max-w-lg">
@@ -59,16 +62,17 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
   const currentQuestion = questions[currentQuestionIndex];
   const totalQuestions = questions.length;
   const progress = totalQuestions > 0 ? ((currentQuestionIndex + 1) / totalQuestions) * 100 : 0;
+  const isFreeUser = !userProfile || userProfile.subscription === 'free'; // Determine if user is on free plan or guest
+
 
   // --- Translation Handling ---
   const getTranslatedText = (textObj: TranslatedText | string): string => {
-     // Handle cases where category might just be a string
      if (typeof textObj === 'string') return textObj;
-     return textObj?.[language] || ''; // Add null check
+     return textObj?.[language] || '';
    };
 
   const getTranslatedOptions = (optionsObj: Question['options']): string[] => {
-    return optionsObj?.[language] || []; // Add null check
+    return optionsObj?.[language] || [];
   }
 
   const handleTranslate = async () => {
@@ -95,7 +99,6 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
 
   // --- Quiz Logic ---
   const handleOptionSelect = (value: string) => {
-     // Value is the selected answer text in the current language
     setSelectedAnswers((prev) => ({
       ...prev,
       [currentQuestion.id]: value,
@@ -110,7 +113,7 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
 
   const handlePrevious = () => {
     if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1); // Corrected: Decrement index
+      setCurrentQuestionIndex(currentQuestionIndex - 1);
     }
   };
 
@@ -120,59 +123,48 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
 
     // Construct the final answers array including the text of questions and answers
     const constructedAnswers: Answer[] = questions.map(q => {
-        const selectedAnswerText = selectedAnswers[q.id]; // Selected answer in the language it was answered
-        // Make sure to get the question text in the language it was *answered* in.
-        // Since language might have changed, we rely on the 'language' state at the time of submission.
+        const selectedAnswerText = selectedAnswers[q.id];
         const currentQuestionText = q.question?.[language] || 'Question Text N/A';
         const correctAnswerText = q.correctAnswer?.[language] || 'Correct Answer N/A';
-
         const isCorrect = !!selectedAnswerText && selectedAnswerText === correctAnswerText;
         if (isCorrect) {
             calculatedScore++;
         }
-
         return {
             questionId: q.id,
-            questionText: currentQuestionText, // Store the question text in the language answered
+            questionText: currentQuestionText,
             selectedAnswer: selectedAnswerText || "Not Answered",
-            correctAnswerText: correctAnswerText, // Store the correct answer text in the language answered
+            correctAnswerText: correctAnswerText,
             isCorrect: isCorrect,
         };
     });
 
-    setFinalAnswers(constructedAnswers); // Set the detailed answers for review
+    setFinalAnswers(constructedAnswers);
     const finalScore = calculatedScore;
     setScore(finalScore);
 
     const percentage = totalQuestions > 0 ? Math.round((finalScore / totalQuestions) * 100) : 0;
 
-
-    // Save result to Firestore if user is logged in
-    if (userId) { // Use userId prop
-      const resultData: Omit<QuizResult, 'id' | 'completedAt'> = { // Exclude id and completedAt (serverTimestamp used)
-        userId: userId, // Use userId prop
+    if (userId) {
+      const resultData: Omit<QuizResult, 'id' | 'completedAt'> = {
+        userId: userId,
         score: finalScore,
         totalQuestions: totalQuestions,
         percentage: percentage,
-        answers: constructedAnswers, // Save the detailed answers
-        // category: currentQuestion?.category, // Optional: Save category if quizzes are themed
-        // completedAt will be set by Firestore serverTimestamp in saveQuizResult
+        answers: constructedAnswers,
       };
       try {
         await saveQuizResult(resultData);
-        // Important: Call usage update *after* successful save
         try {
-            await onQuizSubmit(); // Call the callback to update user usage
+            await onQuizSubmit(); // Call usage update after successful save
             console.log("Quiz usage updated successfully after result save.");
         } catch (usageError) {
              console.error("Failed to update quiz usage after saving result:", usageError);
-             // Decide if this warrants a user-facing error. Usually okay to proceed.
         }
         toast({
           title: "Quiz Submitted!",
           description: `Your result: ${finalScore}/${totalQuestions} (${percentage}%). It has been saved.`,
         });
-        // Redirect is now handled based on usage limit in the quiz page itself
       } catch (error) {
         console.error("Failed to save quiz result:", error);
         toast({
@@ -181,11 +173,10 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
           description: "Could not save your quiz result. Please try again.",
         });
       } finally {
-         setQuizFinished(true); // Show results page regardless of save success/failure
+         setQuizFinished(true);
          setIsSubmitting(false);
       }
     } else {
-         // User not logged in, just show results locally
          toast({
            title: "Quiz Submitted!",
            description: `Your result: ${finalScore}/${totalQuestions} (${percentage}%). Log in to save results.`,
@@ -196,9 +187,21 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
   };
 
   const restartQuiz = () => {
-     // Use window.location.href for a full page reload to guarantee fresh state
      window.location.href = '/quiz';
   };
+
+   const handleReviewClick = () => {
+       if (isFreeUser) {
+           setShowUpgradeReviewDialog(true); // Show upgrade dialog for free users
+       } else {
+           setShowReview(true); // Show review dialog for paid users
+       }
+   };
+
+   const handleUpgradeClick = () => {
+        router.push('/pricing');
+   };
+
 
   // --- Memoized values for performance ---
   const currentQuestionTextMemo = useMemo(() => getTranslatedText(currentQuestion?.question), [currentQuestion, language, translations]);
@@ -207,13 +210,12 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
   // --- Render Logic ---
 
   if (quizFinished) {
-    // Improved Result Display
     const percentage = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
     const performanceMessage = percentage >= 70 ? "Excellent work!" : percentage >= 50 ? "Good effort, keep practicing!" : "Keep practicing to improve!";
 
     return (
       <div className="flex flex-col items-center justify-center flex-1 w-full p-4 md:p-8">
-        <Card className="w-full max-w-lg text-center p-6 md:p-10 rounded-xl shadow-lg border bg-card">
+        <Card className="w-full max-w-xl text-center p-6 md:p-10 rounded-xl shadow-lg border bg-card"> {/* Increased max-w */}
           <CardHeader className="mb-4">
              <Trophy className="mx-auto h-12 w-12 text-yellow-500 mb-3" />
             <CardTitle className="text-3xl font-bold text-primary">Quiz Completed!</CardTitle>
@@ -236,13 +238,14 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
                 </p>
              )}
           </CardContent>
-          <CardFooter className="flex flex-col sm:flex-row justify-center gap-3 flex-wrap">
-            <Button onClick={restartQuiz} variant="outline" size="lg" className="flex-1 min-w-[150px]">
+          <CardFooter className="flex flex-col sm:flex-row justify-center items-stretch gap-3 flex-wrap"> {/* Use items-stretch */}
+            <Button onClick={restartQuiz} variant="outline" size="lg" className="flex-1 min-w-[150px]"> {/* Ensure buttons can grow */}
                <Repeat className="mr-2 h-4 w-4" /> Take Another Quiz
             </Button>
-            <Button onClick={() => setShowReview(true)} size="lg" className="flex-1 min-w-[150px]">
-               <ListChecks className="mr-2 h-4 w-4" /> Review Answers
-            </Button>
+             {/* Conditionally render Review button or Upgrade dialog trigger */}
+             <Button onClick={handleReviewClick} size="lg" className="flex-1 min-w-[150px]">
+                 <ListChecks className="mr-2 h-4 w-4" /> Review Answers
+             </Button>
             {userId && (
                 <Button onClick={() => router.push('/dashboard')} variant="secondary" size="lg" className="flex-1 min-w-[150px]">
                     <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
@@ -250,13 +253,24 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
             )}
           </CardFooter>
         </Card>
-        <ReviewAnswersDialog
-            isOpen={showReview}
-            onClose={() => setShowReview(false)}
-            answers={finalAnswers}
-            questions={questions}
-            language={language}
-         />
+        {/* Only render ReviewAnswersDialog if user is not free OR if it's allowed for free (if logic changes) */}
+        {!isFreeUser && (
+             <ReviewAnswersDialog
+                 isOpen={showReview}
+                 onClose={() => setShowReview(false)}
+                 answers={finalAnswers}
+                 questions={questions}
+                 language={language}
+              />
+        )}
+         {/* Render Upgrade Dialog for Free Users */}
+         <UpgradeAlertDialog
+              isOpen={showUpgradeReviewDialog}
+              onClose={() => setShowUpgradeReviewDialog(false)}
+              triggerButton={null} // Triggered programmatically
+              featureName="Answer Review"
+              onUpgradeClick={handleUpgradeClick}
+          />
       </div>
     );
   }
@@ -379,31 +393,41 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
        <Button
         variant="link"
         className="mt-6 text-muted-foreground hover:text-primary"
-        onClick={() => setShowReview(true)}
+        onClick={handleReviewClick} // Use the combined handler
         disabled={!Object.keys(selectedAnswers).length || isSubmitting}
       >
         Review Answers
       </Button>
-        <ReviewAnswersDialog
-          isOpen={showReview && !quizFinished}
-          onClose={() => setShowReview(false)}
-          answers={Object.entries(selectedAnswers).map(([qId, selAns]) => {
-             const question = questions.find(q => q.id === qId);
-             const correctAnsText = question?.correctAnswer?.[language] || '';
-             const questionTextInReviewLang = question?.question?.[language] || '';
-             const isCorrect = !!question && !!selAns && correctAnsText === selAns;
-             return {
-               questionId: qId,
-               questionText: questionTextInReviewLang,
-               selectedAnswer: selAns,
-               correctAnswerText: correctAnsText,
-               isCorrect: isCorrect
-             };
-           })}
-          questions={questions}
-          language={language}
-        />
+       {/* Render Review Dialog only if needed and allowed */}
+        {!isFreeUser && (
+            <ReviewAnswersDialog
+                isOpen={showReview && !quizFinished} // Only open if !isFreeUser
+                onClose={() => setShowReview(false)}
+                 answers={Object.entries(selectedAnswers).map(([qId, selAns]) => {
+                    const question = questions.find(q => q.id === qId);
+                    const correctAnsText = question?.correctAnswer?.[language] || '';
+                    const questionTextInReviewLang = question?.question?.[language] || '';
+                    const isCorrect = !!question && !!selAns && correctAnsText === selAns;
+                    return {
+                      questionId: qId,
+                      questionText: questionTextInReviewLang,
+                      selectedAnswer: selAns,
+                      correctAnswerText: correctAnsText,
+                      isCorrect: isCorrect
+                    };
+                  })}
+                questions={questions}
+                language={language}
+            />
+        )}
+         {/* Render Upgrade Dialog, always available */}
+        <UpgradeAlertDialog
+             isOpen={showUpgradeReviewDialog}
+             onClose={() => setShowUpgradeReviewDialog(false)}
+             triggerButton={null} // Triggered programmatically
+             featureName="Answer Review"
+             onUpgradeClick={handleUpgradeClick}
+         />
     </div>
   );
 }
-

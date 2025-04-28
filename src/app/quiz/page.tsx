@@ -39,7 +39,7 @@ export default function QuizPage() {
   const [quizCountToday, setQuizCountToday] = React.useState(0);
   const [quizLimit, setQuizLimit] = React.useState(0);
   const [validationNeeded, setValidationNeeded] = React.useState(false);
-  const [quizActive, setQuizActive] = React.useState(false); // New state to track if quiz is active/just finished
+  const [quizActive, setQuizActive] = React.useState(false); // Track if quiz is active
 
   const router = useRouter();
 
@@ -56,7 +56,7 @@ export default function QuizPage() {
       if (user) {
         try {
           const profile = await getUserProfile(user.uid);
-          setUserProfile(profile);
+          setUserProfile(profile); // Store fetched profile
           if (profile) {
             const limit = QUIZ_LIMITS[profile.subscription];
             setQuizLimit(limit);
@@ -65,9 +65,6 @@ export default function QuizPage() {
             // Reset count if last quiz was not today
             if (profile.lastQuizDate && isToday(profile.lastQuizDate.toDate())) {
               todayCount = profile.quizCountToday || 0;
-            } else {
-               // Reset count if not today
-               todayCount = 0;
             }
             setQuizCountToday(todayCount);
 
@@ -162,16 +159,17 @@ export default function QuizPage() {
         // The updateUserQuizUsage function internally checks the date and increments/resets
         await updateUserQuizUsage(currentUser.uid);
 
-        // Update local state immediately for feedback, although it might cause flicker
         // Fetch profile again to get the absolute latest count after update
+        // This ensures the next check reflects the just-completed quiz
         const updatedProfile = await getUserProfile(currentUser.uid);
         if (updatedProfile) {
+            setUserProfile(updatedProfile); // Update the profile state
             const newCount = updatedProfile.quizCountToday || 0;
             setQuizCountToday(newCount); // Update local state with accurate count
              const limit = QUIZ_LIMITS[updatedProfile.subscription];
              if (limit !== Infinity && newCount >= limit) {
                  setLimitExceeded(true); // Set limitExceeded *after* submitting
-                 // We don't set canTakeQuiz = false here, let the next page load handle eligibility
+                 // We don't set canTakeQuiz = false here, let the component re-render handle eligibility display
                  console.log(`User ${currentUser.uid} reached limit after submission.`);
              }
         }
@@ -181,9 +179,6 @@ export default function QuizPage() {
         // Handle error, maybe notify user but let quiz submission proceed
       }
     }
-    // Navigation happens inside QuizClient after saving results if needed, or user clicks button
-    // Set quizActive to false maybe? Or let the component lifecycle handle it?
-    // Let lifecycle handle it for now.
   };
 
 
@@ -193,7 +188,95 @@ export default function QuizPage() {
        return <QuizLoadingSkeleton />;
      }
 
-    // If quiz is active (started or finished), render QuizClient to handle display
+    // --- If Quiz is NOT active (or just finished), check for blocking conditions ---
+    // Note: This block now runs AFTER quizActive check, so it applies when navigating back or after finish
+     if (!quizActive) {
+        if (validationNeeded && currentUser) {
+             return (
+                <div className="flex flex-1 items-center justify-center p-4 text-center">
+                    <Card className="w-full max-w-md text-center p-6 md:p-8 rounded-xl shadow-lg border">
+                        <CardHeader>
+                            <CardTitle className="text-2xl font-bold text-yellow-600 flex items-center justify-center gap-2">
+                                <Lock className="h-6 w-6" /> Validation Required
+                            </CardTitle>
+                            <CardDescription className="text-muted-foreground">
+                                Your <span className="font-medium capitalize">{userProfile?.subscription}</span> plan requires validation to access quizzes.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="mb-6">Please complete the payment verification process outlined in your dashboard.</p>
+                        </CardContent>
+                        <CardFooter className="flex flex-col sm:flex-row justify-center gap-3">
+                            <Link href="/dashboard" passHref>
+                                <Button variant="outline" size="lg"><ArrowLeft className="mr-2 h-4 w-4" /> Go to Dashboard</Button>
+                            </Link>
+                        </CardFooter>
+                    </Card>
+                </div>
+             );
+         }
+
+         if (limitExceeded && currentUser) {
+            return (
+              <div className="flex flex-1 items-center justify-center p-4 text-center">
+                <Card className="w-full max-w-md text-center p-6 md:p-8 rounded-xl shadow-lg border">
+                    <CardHeader>
+                        <CardTitle className="text-2xl font-bold text-destructive flex items-center justify-center gap-2">
+                            <Clock className="h-6 w-6" /> Daily Limit Reached
+                        </CardTitle>
+                        <CardDescription className="text-muted-foreground">
+                            You have reached your daily quiz limit of {quizLimit} for the <span className="font-medium capitalize">{userProfile?.subscription}</span> plan.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="mb-6">Please come back tomorrow to take more quizzes or upgrade your plan for unlimited access.</p>
+                    </CardContent>
+                    <CardFooter className="flex flex-col sm:flex-row justify-center gap-3">
+                        <Link href="/dashboard" passHref>
+                            <Button variant="outline" size="lg"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard</Button>
+                        </Link>
+                        {userProfile?.subscription !== 'premium' && (
+                            <Link href="/pricing" passHref>
+                                <Button size="lg">Upgrade Plan</Button>
+                            </Link>
+                        )}
+                    </CardFooter>
+                </Card>
+              </div>
+            );
+         }
+
+        if (error) {
+          return (
+            <div className="flex flex-1 items-center justify-center p-4 text-center">
+               <Alert variant="destructive" className="max-w-lg">
+                 <AlertTriangle className="h-4 w-4" />
+                 <AlertTitle>Error</AlertTitle>
+                 <AlertDescription>{error}</AlertDescription>
+                  <Link href={currentUser ? "/dashboard" : "/"} className="mt-4 inline-block">
+                     <Button variant="secondary" size="sm"><ArrowLeft className="mr-2 h-4 w-4" /> Go Back</Button>
+                  </Link>
+               </Alert>
+            </div>
+          );
+        }
+         // Fallback if eligibility check is done, user CAN take quiz, but questions aren't ready yet and no error (should be brief)
+         if (canTakeQuiz && !loading && questions.length === 0 && !error) {
+           return (
+             <div className="flex flex-1 items-center justify-center p-4 text-center">
+               <Alert variant="default" className="max-w-lg">
+                 <AlertTitle>Quiz Unavailable</AlertTitle>
+                 <AlertDescription>No questions are available for a quiz right now. Please try again later.</AlertDescription>
+                 <Link href={currentUser ? "/dashboard" : "/"} className="mt-4 inline-block">
+                   <Button variant="secondary" size="sm"><ArrowLeft className="mr-2 h-4 w-4" /> Go Back</Button>
+                 </Link>
+               </Alert>
+             </div>
+           );
+         }
+     }
+
+    // --- If Quiz IS Active ---
     if (quizActive) {
        // Show loading skeleton only if questions are still loading *while* active
        if (loading) {
@@ -207,6 +290,7 @@ export default function QuizPage() {
                    questions={questions}
                    onQuizSubmit={handleQuizSubmit} // Pass the submit handler
                    userId={currentUser?.uid || null} // Pass user ID
+                   userProfile={userProfile} // Pass user profile for plan check
                 />
              </div>
            );
@@ -215,92 +299,6 @@ export default function QuizPage() {
          return <QuizLoadingSkeleton />;
     }
 
-    // --- If Quiz is NOT active, check for blocking conditions ---
-
-     if (validationNeeded && currentUser) {
-         return (
-            <div className="flex flex-1 items-center justify-center p-4 text-center">
-                <Card className="w-full max-w-md text-center p-6 md:p-8 rounded-xl shadow-lg border">
-                    <CardHeader>
-                        <CardTitle className="text-2xl font-bold text-yellow-600 flex items-center justify-center gap-2">
-                            <Lock className="h-6 w-6" /> Validation Required
-                        </CardTitle>
-                        <CardDescription className="text-muted-foreground">
-                            Your <span className="font-medium capitalize">{userProfile?.subscription}</span> plan requires validation to access quizzes.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="mb-6">Please complete the payment verification process outlined in your dashboard.</p>
-                    </CardContent>
-                    <CardFooter className="flex flex-col sm:flex-row justify-center gap-3">
-                        <Link href="/dashboard" passHref>
-                            <Button variant="outline" size="lg"><ArrowLeft className="mr-2 h-4 w-4" /> Go to Dashboard</Button>
-                        </Link>
-                    </CardFooter>
-                </Card>
-            </div>
-         );
-     }
-
-     if (limitExceeded && currentUser) {
-        return (
-          <div className="flex flex-1 items-center justify-center p-4 text-center">
-            <Card className="w-full max-w-md text-center p-6 md:p-8 rounded-xl shadow-lg border">
-                <CardHeader>
-                    <CardTitle className="text-2xl font-bold text-destructive flex items-center justify-center gap-2">
-                        <Clock className="h-6 w-6" /> Daily Limit Reached
-                    </CardTitle>
-                    <CardDescription className="text-muted-foreground">
-                        You have reached your daily quiz limit of {quizLimit} for the <span className="font-medium capitalize">{userProfile?.subscription}</span> plan.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <p className="mb-6">Please come back tomorrow to take more quizzes or upgrade your plan for unlimited access.</p>
-                </CardContent>
-                <CardFooter className="flex flex-col sm:flex-row justify-center gap-3">
-                    <Link href="/dashboard" passHref>
-                        <Button variant="outline" size="lg"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard</Button>
-                    </Link>
-                    {userProfile?.subscription !== 'premium' && (
-                        <Link href="/pricing" passHref>
-                            <Button size="lg">Upgrade Plan</Button>
-                        </Link>
-                    )}
-                </CardFooter>
-            </Card>
-          </div>
-        );
-     }
-
-    if (error && !quizActive) { // Show general error only if quiz wasn't active
-      return (
-        <div className="flex flex-1 items-center justify-center p-4 text-center">
-           <Alert variant="destructive" className="max-w-lg">
-             <AlertTriangle className="h-4 w-4" />
-             <AlertTitle>Error</AlertTitle>
-             <AlertDescription>{error}</AlertDescription>
-              <Link href={currentUser ? "/dashboard" : "/"} className="mt-4 inline-block">
-                 <Button variant="secondary" size="sm"><ArrowLeft className="mr-2 h-4 w-4" /> Go Back</Button>
-              </Link>
-           </Alert>
-        </div>
-      );
-    }
-
-    // Fallback if eligibility check is done, user CAN take quiz, but questions aren't ready yet and no error (should be brief)
-     if (canTakeQuiz && !loading && questions.length === 0 && !error && !quizActive) {
-       return (
-         <div className="flex flex-1 items-center justify-center p-4 text-center">
-           <Alert variant="default" className="max-w-lg">
-             <AlertTitle>Quiz Unavailable</AlertTitle>
-             <AlertDescription>No questions are available for a quiz right now. Please try again later.</AlertDescription>
-             <Link href={currentUser ? "/dashboard" : "/"} className="mt-4 inline-block">
-               <Button variant="secondary" size="sm"><ArrowLeft className="mr-2 h-4 w-4" /> Go Back</Button>
-             </Link>
-           </Alert>
-         </div>
-       );
-     }
 
     // Default fallback (should ideally not be reached often)
     return (
@@ -347,3 +345,4 @@ function QuizLoadingSkeleton() {
     </div>
   );
 }
+
