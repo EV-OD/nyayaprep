@@ -144,7 +144,14 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
       };
       try {
         await saveQuizResult(resultData);
-        await onQuizSubmit(); // Call the callback to update user usage *after* saving
+        // Important: Call usage update *after* successful save
+        try {
+            await onQuizSubmit(); // Call the callback to update user usage
+            console.log("Quiz usage updated successfully after result save.");
+        } catch (usageError) {
+             console.error("Failed to update quiz usage after saving result:", usageError);
+             // Decide if this warrants a user-facing error. Usually okay to proceed.
+        }
         toast({
           title: "Quiz Submitted!",
           description: `Your result: ${finalScore}/${totalQuestions} (${percentage}%). It has been saved.`,
@@ -173,7 +180,8 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
   };
 
   const restartQuiz = () => {
-     router.push('/quiz'); // Navigate back to quiz page to start fresh
+     // Use window.location.href for a full page reload to guarantee fresh state
+     window.location.href = '/quiz';
   };
 
   // --- Memoized values for performance ---
@@ -382,3 +390,4 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
     </div>
   );
 }
+
