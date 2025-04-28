@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -129,14 +128,9 @@ function RegisterFormComponent() {
         action: <CheckCircle className="text-green-500" />,
       });
 
-      // 3. Redirect based on plan
-      if (selectedPlan === 'free') {
-        // Redirect free users to login directly
-        setTimeout(() => router.push('/login'), 1500);
-      } else {
-        // Redirect paid users to payment page
-        setTimeout(() => router.push(`/payment?plan=${selectedPlan}`), 1500);
-      }
+      // 3. Redirect to login
+      setTimeout(() => router.push('/login'), 1500);
+
 
     } catch (err: unknown) {
       const authError = err as AuthError;
@@ -241,7 +235,7 @@ function RegisterFormComponent() {
                                <div className="flex items-center gap-4">
                                  <Label
                                    htmlFor="profile-picture-input"
-                                   className="flex-1 cursor-pointer rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                   className="flex-1 cursor-pointer rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                  >
                                    <ImageIcon className="inline-block mr-2 h-4 w-4" />
                                    {previewUrl ? 'Change picture' : 'Choose a picture'}
