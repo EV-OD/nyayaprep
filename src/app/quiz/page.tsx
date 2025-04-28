@@ -39,6 +39,7 @@ export default function QuizPage() {
   const [quizCountToday, setQuizCountToday] = React.useState(0);
   const [quizLimit, setQuizLimit] = React.useState(0);
   const [validationNeeded, setValidationNeeded] = React.useState(false);
+  const [quizActive, setQuizActive] = React.useState(false); // New state to track if quiz is active/just finished
 
   const router = useRouter();
 
@@ -48,6 +49,7 @@ export default function QuizPage() {
     setCanTakeQuiz(null); // Reset eligibility check on auth change
     setLimitExceeded(false);
     setValidationNeeded(false);
+    setQuizActive(false); // Reset quiz active state
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
@@ -63,10 +65,9 @@ export default function QuizPage() {
             // Reset count if last quiz was not today
             if (profile.lastQuizDate && isToday(profile.lastQuizDate.toDate())) {
               todayCount = profile.quizCountToday || 0;
-               console.log(`User ${user.uid} took ${todayCount} quizzes today. Limit: ${limit}`);
             } else {
-               console.log(`User ${user.uid} last quiz was not today. Resetting count.`);
-               todayCount = 0; // Reset count if not today
+               // Reset count if not today
+               todayCount = 0;
             }
             setQuizCountToday(todayCount);
 
@@ -79,10 +80,10 @@ export default function QuizPage() {
                console.log(`User ${user.uid} needs validation for ${profile.subscription} plan.`);
             } else if (isOverLimit) {
                setCanTakeQuiz(false);
-               setLimitExceeded(true);
+               setLimitExceeded(true); // Set limit exceeded here
                console.log(`User ${user.uid} reached daily quiz limit.`);
             } else {
-               setCanTakeQuiz(true);
+               setCanTakeQuiz(true); // Can take quiz initially
                console.log(`User ${user.uid} can take a quiz. Count: ${todayCount}, Limit: ${limit}`);
             }
           } else {
@@ -118,11 +119,12 @@ export default function QuizPage() {
     }
 
     if (!canTakeQuiz) {
-        setLoading(false); // Stop loading if not allowed
-        // Error message is set based on limitExceeded or validationNeeded states
+        setLoading(false); // Stop loading if not allowed initially
         return;
     }
 
+    // If allowed to take quiz, start fetching and set quizActive
+    setQuizActive(true); // Mark quiz as active
     const fetchQuestions = async () => {
       setLoading(true);
       setError(null);
@@ -132,6 +134,7 @@ export default function QuizPage() {
         if (fetchedQuestions.length === 0) {
           setError("No questions available to start a quiz at this moment.");
            console.warn("No questions fetched from getRandomMcqs.");
+           setQuizActive(false); // Set quiz inactive if no questions found
         } else if (fetchedQuestions.length < NUMBER_OF_QUESTIONS) {
           console.warn(`Fetched only ${fetchedQuestions.length} questions, less than required ${NUMBER_OF_QUESTIONS}.`);
           setQuestions(fetchedQuestions);
@@ -142,6 +145,7 @@ export default function QuizPage() {
       } catch (err) {
         console.error("Failed to fetch questions:", err);
         setError("Failed to load questions due to a database error. Please try again later.");
+         setQuizActive(false); // Set quiz inactive on fetch error
       } finally {
         setLoading(false);
       }
@@ -155,30 +159,63 @@ export default function QuizPage() {
     if (currentUser) {
       try {
         console.log(`Updating quiz usage for user: ${currentUser.uid}`);
+        // The updateUserQuizUsage function internally checks the date and increments/resets
         await updateUserQuizUsage(currentUser.uid);
-        // Update local state immediately for feedback, though dashboard re-fetches
-        const newCount = quizCountToday + 1;
-        setQuizCountToday(newCount);
-        if (quizLimit !== Infinity && newCount >= quizLimit) {
-            setLimitExceeded(true);
-            setCanTakeQuiz(false);
-            console.log(`User ${currentUser.uid} reached limit after submission.`);
+
+        // Update local state immediately for feedback, although it might cause flicker
+        // Fetch profile again to get the absolute latest count after update
+        const updatedProfile = await getUserProfile(currentUser.uid);
+        if (updatedProfile) {
+            const newCount = updatedProfile.quizCountToday || 0;
+            setQuizCountToday(newCount); // Update local state with accurate count
+             const limit = QUIZ_LIMITS[updatedProfile.subscription];
+             if (limit !== Infinity && newCount >= limit) {
+                 setLimitExceeded(true); // Set limitExceeded *after* submitting
+                 // We don't set canTakeQuiz = false here, let the next page load handle eligibility
+                 console.log(`User ${currentUser.uid} reached limit after submission.`);
+             }
         }
-        console.log(`Quiz usage updated for user: ${currentUser.uid}. New count: ${newCount}`);
+        console.log(`Quiz usage updated for user: ${currentUser.uid}.`);
       } catch (err) {
         console.error("Failed to update quiz usage:", err);
         // Handle error, maybe notify user but let quiz submission proceed
       }
     }
-    // Navigation happens inside QuizClient after saving results
+    // Navigation happens inside QuizClient after saving results if needed, or user clicks button
+    // Set quizActive to false maybe? Or let the component lifecycle handle it?
+    // Let lifecycle handle it for now.
   };
 
 
   const renderContent = () => {
-    // Show loading skeleton only when auth is done AND eligibility is being checked OR questions are loading
-     if (loadingAuth || (canTakeQuiz === null && !error) || (canTakeQuiz && loading)) {
+    // Show loading skeleton during auth check or initial eligibility check
+     if (loadingAuth || canTakeQuiz === null) {
        return <QuizLoadingSkeleton />;
      }
+
+    // If quiz is active (started or finished), render QuizClient to handle display
+    if (quizActive) {
+       // Show loading skeleton only if questions are still loading *while* active
+       if (loading) {
+           return <QuizLoadingSkeleton />;
+       }
+       // Render QuizClient if questions are ready or if there was an error loading them (QuizClient might show error)
+       if (questions.length > 0 || error) {
+           return (
+             <div className="flex flex-col items-center justify-center flex-1 w-full p-4 md:p-8"> {/* Make parent full width */}
+                <QuizClient
+                   questions={questions}
+                   onQuizSubmit={handleQuizSubmit} // Pass the submit handler
+                   userId={currentUser?.uid || null} // Pass user ID
+                />
+             </div>
+           );
+        }
+         // Fallback if active but no questions and no error yet (should be brief)
+         return <QuizLoadingSkeleton />;
+    }
+
+    // --- If Quiz is NOT active, check for blocking conditions ---
 
      if (validationNeeded && currentUser) {
          return (
@@ -235,12 +272,12 @@ export default function QuizPage() {
         );
      }
 
-    if (error) {
+    if (error && !quizActive) { // Show general error only if quiz wasn't active
       return (
         <div className="flex flex-1 items-center justify-center p-4 text-center">
            <Alert variant="destructive" className="max-w-lg">
              <AlertTriangle className="h-4 w-4" />
-             <AlertTitle>Error Loading Quiz</AlertTitle>
+             <AlertTitle>Error</AlertTitle>
              <AlertDescription>{error}</AlertDescription>
               <Link href={currentUser ? "/dashboard" : "/"} className="mt-4 inline-block">
                  <Button variant="secondary" size="sm"><ArrowLeft className="mr-2 h-4 w-4" /> Go Back</Button>
@@ -250,21 +287,8 @@ export default function QuizPage() {
       );
     }
 
-    // Render QuizClient only if questions are loaded and allowed
-    if (questions.length > 0 && canTakeQuiz) {
-        return (
-          <div className="flex flex-col items-center justify-center flex-1 w-full p-4 md:p-8"> {/* Make parent full width */}
-             <QuizClient
-                questions={questions}
-                onQuizSubmit={handleQuizSubmit} // Pass the submit handler
-                userId={currentUser?.uid || null} // Pass user ID
-             />
-          </div>
-        );
-    }
-
-     // Fallback if eligibility check is done, user CAN take quiz, but questions aren't ready yet and no error
-     if (canTakeQuiz && !loading && questions.length === 0 && !error) {
+    // Fallback if eligibility check is done, user CAN take quiz, but questions aren't ready yet and no error (should be brief)
+     if (canTakeQuiz && !loading && questions.length === 0 && !error && !quizActive) {
        return (
          <div className="flex flex-1 items-center justify-center p-4 text-center">
            <Alert variant="default" className="max-w-lg">
