@@ -42,16 +42,16 @@ export default function Home() {
                 <div className="absolute -top-20 -left-20 w-72 h-72 bg-primary/30 rounded-full filter blur-3xl animate-pulse"></div>
                 {/* Adjusted bottom-right blob position */}
                 <div className="absolute bottom-10 right-10 w-64 h-64 bg-teal-500/30 rounded-full filter blur-3xl animate-pulse animation-delay-400"></div>
-                {/* Subtle dot pattern - Increased opacity */}
-                <div
-                    className="absolute inset-0 opacity-50" // Increased opacity for dots
-                    style={{
-                        backgroundImage: 'radial-gradient(hsl(var(--muted-foreground)/0.15) 1px, transparent 1px)', // Increased alpha for dots
-                        backgroundSize: '10px 10px'
-                     }}
-                 ></div>
-                 {/* Adding a subtle grid pattern - Increased alpha */}
-                 <div className="absolute inset-0 opacity-50 bg-[linear-gradient(to_right,theme(colors.border/0.2)_1px,transparent_1px),linear-gradient(to_bottom,theme(colors.border/0.2)_1px,transparent_1px)] bg-[size:4rem_4rem]"></div> {/* Increased alpha for grid */}
+                {/* Dot pattern - Increased opacity */}
+                 <div
+                     className="absolute inset-0 opacity-50" // Make dots more visible
+                     style={{
+                         backgroundImage: 'radial-gradient(hsl(var(--muted-foreground)/0.2) 1px, transparent 1px)', // Slightly increased alpha for dots
+                         backgroundSize: '10px 10px'
+                      }}
+                  ></div>
+                 {/* Grid pattern - Increased alpha */}
+                 <div className="absolute inset-0 opacity-50 bg-[linear-gradient(to_right,theme(colors.border/0.3)_1px,transparent_1px),linear-gradient(to_bottom,theme(colors.border/0.3)_1px,transparent_1px)] bg-[size:4rem_4rem]"></div> {/* Make grid more visible */}
                  {/* Another Animated Blob with increased opacity */}
                  <div className="absolute top-1/4 right-1/4 w-60 h-60 bg-secondary/30 rounded-full filter blur-2xl animate-pulse animation-delay-200"></div>
             </div>
@@ -156,3 +156,4 @@ export default function Home() {
     </div>
   );
 }
+
