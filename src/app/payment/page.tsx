@@ -51,6 +51,7 @@ function PaymentComponent() {
         // Optionally add a small delay or feedback
         // In a real app, you might want to check if payment was somehow confirmed,
         // but here we just redirect to login as validation is manual.
+        
         router.push('/dashboard');
     };
 

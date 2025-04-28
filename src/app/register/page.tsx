@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -15,8 +16,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, UserPlus, Image as ImageIcon, CheckCircle } from 'lucide-react';
 import { auth } from '@/lib/firebase/config';
-import { createUserWithEmailAndPassword, AuthError } from 'firebase/auth';
-import { createUserProfileDocument } from '@/lib/firebase/firestore'; // Import Firestore function
+import { createUserWithEmailAndPassword, AuthError, onAuthStateChanged, User } from 'firebase/auth'; // Import onAuthStateChanged, User
+import { createUserProfileDocument } from '@/lib/firebase/user'; // Updated import path
 import type { SubscriptionPlan } from '@/types/user'; // Import SubscriptionPlan type
 import { PublicNavbar } from '@/components/layout/public-navbar'; // Import PublicNavbar
 
@@ -52,26 +53,39 @@ function RegisterFormComponent() {
   const planFromUrl = searchParams.get('plan') as SubscriptionPlan | null;
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null); // For image preview
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true); // Track auth state loading
 
+  // Check auth state
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    setIsAuthLoading(true);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
-
+      setIsAuthLoading(false);
     });
     return () => unsubscribe();
-  }, [router]);
+  }, []);
 
+  // Validate plan and set state
   useEffect(() => {
     if (planFromUrl && allowedPlans.includes(planFromUrl)) {
       setSelectedPlan(planFromUrl);
-    } else {
-      // Redirect if plan is missing or invalid
+    } else if (!isAuthLoading && !currentUser) { // Only redirect if auth is checked and user is not logged in
+      // Redirect if plan is missing or invalid and user is not logged in
       toast({ variant: 'destructive', title: 'Invalid Plan', description: 'Please select a subscription plan first.' });
       router.replace('/pricing'); // Redirect to pricing page
     }
-    // Depend on planFromUrl directly
-  }, [planFromUrl, router, toast]);
+  }, [planFromUrl, router, toast, isAuthLoading, currentUser]);
+
+  // Redirect logged-in users to payment page *after* component mounts
+  useEffect(() => {
+    if (!isAuthLoading && currentUser && selectedPlan && selectedPlan !== 'free') {
+       // User is logged in, has a valid selected plan (not free), redirect to payment
+       router.push(`/payment?plan=${selectedPlan}`);
+    }
+    // Add dependencies to ensure this effect runs when these values change
+  }, [isAuthLoading, currentUser, selectedPlan, router]);
+
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(formSchema),
@@ -106,6 +120,12 @@ function RegisterFormComponent() {
          toast({ variant: 'destructive', title: 'Error', description: 'Subscription plan missing.' });
          return;
      }
+      // Prevent registration if user is already logged in
+     if (currentUser) {
+        toast({ variant: 'destructive', title: 'Already Logged In', description: 'You are already logged in. Go to dashboard to manage your plan.' });
+        return;
+     }
+
     setIsLoading(true);
     setError(null);
 
@@ -137,8 +157,14 @@ function RegisterFormComponent() {
         action: <CheckCircle className="text-green-500" />,
       });
 
-      // 3. Redirect to login
-      setTimeout(() => router.push('/login'), 1500);
+      // 3. Redirect based on plan
+      if (selectedPlan === 'free') {
+         // For free plan, redirect to dashboard after a short delay
+         setTimeout(() => router.push('/dashboard'), 1500);
+      } else {
+         // For paid plans, redirect to payment page after a short delay
+         setTimeout(() => router.push(`/payment?plan=${selectedPlan}`), 1500);
+      }
 
 
     } catch (err: unknown) {
@@ -159,11 +185,12 @@ function RegisterFormComponent() {
         title: 'Registration Failed',
         description: errorMessage,
       });
-      setIsLoading(false);
+    } finally {
+       setIsLoading(false); // Ensure loading state is reset even on redirect
     }
   };
 
-   if (!selectedPlan) {
+   if (isAuthLoading || (!selectedPlan && !currentUser)) { // Show loading if auth is loading OR plan isn't set AND user isn't logged in (to allow redirect time)
       // Show loading or placeholder while checking plan or redirecting
       return (
           <div className="flex flex-col min-h-screen">
@@ -178,20 +205,11 @@ function RegisterFormComponent() {
       );
    }
 
-    if(currentUser){
-        router.push(`/payment?plan=${selectedPlan}`);
-        return(
-            <div className="flex flex-col min-h-screen">
-            <PublicNavbar />
-            <div className="flex flex-1 items-center justify-center bg-gradient-to-br from-background to-muted/50 p-4">
-               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-            <footer className="py-4 text-center text-muted-foreground text-sm bg-background border-t">
-               NyayaPrep &copy; {new Date().getFullYear()}
-            </footer>
-         </div>
-        )
-    }
+    // If user is logged in and trying to access register page, redirect handled by useEffect above.
+    // Render null briefly while redirecting.
+   if (currentUser && selectedPlan !== 'free') {
+        return null;
+   }
 
 
   return (
@@ -204,7 +222,11 @@ function RegisterFormComponent() {
                  <UserPlus size={24} /> Create Your Account
               </CardTitle>
               <CardDescription>
-                 You've selected the <span className="font-semibold capitalize">{selectedPlan}</span> plan. Fill in your details below.
+                 {selectedPlan ? (
+                     <>You've selected the <span className="font-semibold capitalize">{selectedPlan}</span> plan. Fill in your details below.</>
+                 ) : (
+                      'Fill in your details below.' // Fallback if plan somehow isn't set but we render
+                 )}
               </CardDescription>
             </CardHeader>
             <Form {...form}>
@@ -313,7 +335,7 @@ function RegisterFormComponent() {
                   )}
                 </CardContent>
                 <CardFooter className="flex flex-col gap-3 pt-4">
-                  <Button type="submit" className="w-full" disabled={isLoading}>
+                  <Button type="submit" className="w-full" disabled={isLoading || !!currentUser}> {/* Disable if loading or logged in */}
                     {isLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
