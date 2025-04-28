@@ -7,6 +7,7 @@ import { ArrowRight, LogIn, DollarSign, BrainCircuit, UserPlus, BarChart2, BookO
 import { PublicNavbar } from '@/components/layout/public-navbar'; // Import PublicNavbar
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { AnimatedMcqBackground } from '@/components/home/animated-mcq-background'; // Import the new component
 
 export default function Home() {
 
@@ -35,23 +36,26 @@ export default function Home() {
        {/* Hero Section */}
        <main className="flex-1">
          <section className="relative py-20 md:py-32 lg:py-40 flex items-center justify-center text-center px-4 overflow-hidden">
+             {/* Animated Background Component */}
+             <AnimatedMcqBackground />
+
             {/* Background decorative elements - Enhanced & More Visible */}
             {/* Increased overall container opacity */}
             <div className="absolute inset-0 z-0 opacity-60 dark:opacity-40">
                 {/* Larger blurred circles (blobs) with increased opacity */}
-                <div className="absolute -top-20 -left-20 w-72 h-72 bg-primary/30 rounded-full filter blur-3xl animate-pulse"></div>
+                <div className="absolute -left-20 w-72 h-72 bg-primary/30 rounded-full filter blur-3xl animate-pulse"></div>
                 {/* Adjusted bottom-right blob position */}
                 <div className="absolute bottom-10 right-10 w-64 h-64 bg-teal-500/30 rounded-full filter blur-3xl animate-pulse animation-delay-400"></div>
-                {/* Dot pattern - Increased opacity */}
+                {/* Dot pattern - Full opacity */}
                  <div
-                     className="absolute inset-0 opacity-50" // Make dots more visible
+                     className="absolute inset-0 opacity-100" // Make dots more visible
                      style={{
                          backgroundImage: 'radial-gradient(hsl(var(--muted-foreground)/0.2) 1px, transparent 1px)', // Slightly increased alpha for dots
                          backgroundSize: '10px 10px'
                       }}
                   ></div>
-                 {/* Grid pattern - Increased alpha */}
-                 <div className="absolute inset-0 opacity-50 bg-[linear-gradient(to_right,theme(colors.border/0.3)_1px,transparent_1px),linear-gradient(to_bottom,theme(colors.border/0.3)_1px,transparent_1px)] bg-[size:4rem_4rem]"></div> {/* Make grid more visible */}
+                 {/* Grid pattern - Full opacity */}
+                 <div className="absolute inset-0 opacity-100 bg-[linear-gradient(to_right,theme(colors.border/0.3)_1px,transparent_1px),linear-gradient(to_bottom,theme(colors.border/0.3)_1px,transparent_1px)] bg-[size:4rem_4rem]"></div> {/* Make grid more visible */}
                  {/* Another Animated Blob with increased opacity */}
                  <div className="absolute top-1/4 right-1/4 w-60 h-60 bg-secondary/30 rounded-full filter blur-2xl animate-pulse animation-delay-200"></div>
             </div>
@@ -156,4 +160,3 @@ export default function Home() {
     </div>
   );
 }
-
