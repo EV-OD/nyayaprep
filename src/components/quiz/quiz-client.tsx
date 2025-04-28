@@ -104,7 +104,7 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
 
   const handlePrevious = () => {
     if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
     }
   };
 
@@ -115,8 +115,10 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
     // Construct the final answers array including the text of questions and answers
     const constructedAnswers: Answer[] = questions.map(q => {
         const selectedAnswerText = selectedAnswers[q.id]; // Selected answer in the language it was answered
-        const currentQuestionText = q.question?.[language] || 'Question Text N/A'; // Question text in the language answered
-        const correctAnswerText = q.correctAnswer?.[language] || 'Correct Answer N/A'; // Correct answer text in the language answered
+        // Make sure to get the question text in the language it was *answered* in.
+        // Since language might have changed, we rely on the 'language' state at the time of submission.
+        const currentQuestionText = q.question?.[language] || 'Question Text N/A';
+        const correctAnswerText = q.correctAnswer?.[language] || 'Correct Answer N/A';
 
         const isCorrect = !!selectedAnswerText && selectedAnswerText === correctAnswerText;
         if (isCorrect) {
@@ -125,9 +127,9 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
 
         return {
             questionId: q.id,
-            questionText: currentQuestionText, // Store the question text
+            questionText: currentQuestionText, // Store the question text in the language answered
             selectedAnswer: selectedAnswerText || "Not Answered",
-            correctAnswerText: correctAnswerText, // Store the correct answer text
+            correctAnswerText: correctAnswerText, // Store the correct answer text in the language answered
             isCorrect: isCorrect,
         };
     });
@@ -152,13 +154,13 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
       };
       try {
         await saveQuizResult(resultData);
-        await onQuizSubmit(); // Call the callback to update user usage
+        await onQuizSubmit(); // Call the callback to update user usage *after* saving
         toast({
           title: "Quiz Submitted!",
           description: `Your result: ${finalScore}/${totalQuestions} (${percentage}%). It has been saved.`,
         });
-        // Redirect to dashboard after successful save
-        router.push('/dashboard');
+        // !! Removed automatic redirect !!
+        // router.push('/dashboard'); // <-- REMOVED
 
       } catch (error) {
         console.error("Failed to save quiz result:", error);
@@ -167,9 +169,9 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
           title: "Submission Error",
           description: "Could not save your quiz result. Please try again.",
         });
-        // Still show the result page even if saving failed
-        setQuizFinished(true);
-        setIsSubmitting(false);
+      } finally {
+         setQuizFinished(true); // Show results page regardless of save success/failure
+         setIsSubmitting(false);
       }
     } else {
          // User not logged in, just show results locally
@@ -180,23 +182,9 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
          setQuizFinished(true);
          setIsSubmitting(false);
      }
-     // Note: setQuizFinished(true) is called inside the try/catch or else block
-     // to ensure it only happens after the save attempt (or if not logged in)
   };
 
   const restartQuiz = () => {
-    // Instead of restarting, maybe redirect to quiz page to re-check limits/fetch new questions?
-    // setCurrentQuestionIndex(0);
-    // setSelectedAnswers({});
-    // setQuizFinished(false);
-    // setScore(0);
-    // setFinalAnswers([]);
-    // setLanguage('en'); // Reset language
-    // setIsSubmitting(false);
-    // toast({
-    //   title: "Quiz Restarted",
-    //   description: "Good luck!",
-    // });
      router.push('/quiz'); // Navigate back to quiz page to start fresh
   };
 
@@ -232,6 +220,7 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
             </Button>
              <Button onClick={() => setShowReview(true)} size="lg">Review Answers</Button>
              {userId && (
+                 // Changed this button to navigate to dashboard explicitly
                  <Button onClick={() => router.push('/dashboard')} variant="secondary" size="lg">Go to Dashboard</Button>
              )}
           </CardFooter>
@@ -378,20 +367,22 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
           // Calculate provisional answers for review dialog (using only selected text)
           answers={Object.entries(selectedAnswers).map(([qId, selAns]) => {
              const question = questions.find(q => q.id === qId);
+             // Ensure we get the correct answer text in the *current* review language
              const correctAnsText = question?.correctAnswer?.[language] || '';
+             // Ensure we get the question text in the *current* review language
+             const questionTextInReviewLang = question?.question?.[language] || '';
              const isCorrect = !!question && !!selAns && correctAnsText === selAns;
              return {
                questionId: qId,
-               questionText: question?.question?.[language] || '', // Include question text
+               questionText: questionTextInReviewLang, // Use question text in review language
                selectedAnswer: selAns,
-               correctAnswerText: correctAnsText, // Include correct answer text
+               correctAnswerText: correctAnsText, // Use correct answer text in review language
                isCorrect: isCorrect
              };
            })}
           questions={questions}
-          language={language}
+          language={language} // Pass current review language
         />
     </div>
   );
 }
-
