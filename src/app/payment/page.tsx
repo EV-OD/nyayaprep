@@ -10,6 +10,7 @@ import Image from 'next/image'; // Import next/image
 import { PublicNavbar } from '@/components/layout/public-navbar'; // Import PublicNavbar
 import { auth } from '@/lib/firebase/config';
 import { onAuthStateChanged, User } from 'firebase/auth';
+import { updateUserProfileDocument } from '@/lib/firebase/user';
 
 // Replace with your actual eSewa QR code image path and WhatsApp number
 const ESEWA_QR_CODE_URL = '/images/esewa-qr-placeholder.png'; // Placeholder path
@@ -51,7 +52,13 @@ function PaymentComponent() {
         // Optionally add a small delay or feedback
         // In a real app, you might want to check if payment was somehow confirmed,
         // but here we just redirect to login as validation is manual.
-        
+        setIsLoading(true);
+        if (user && plan) {
+          updateUserProfileDocument(user.uid, {
+            subscription: plan,
+            validated:false
+          });
+        }
         router.push('/dashboard');
     };
 
