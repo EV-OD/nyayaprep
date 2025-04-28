@@ -12,11 +12,12 @@ import { Progress } from '@/components/ui/progress';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ReviewAnswersDialog } from './review-answers-dialog';
-import { Loader2, Languages, ArrowLeft, ArrowRight, CheckCircle, XCircle, Repeat, ListChecks, LayoutDashboard, Trophy } from 'lucide-react'; // Added Repeat, ListChecks, LayoutDashboard, Trophy
+import { Loader2, Languages, ArrowLeft, ArrowRight, CheckCircle, XCircle, Repeat, ListChecks, LayoutDashboard, Trophy, AlertTriangle } from 'lucide-react'; // Added Repeat, ListChecks, LayoutDashboard, Trophy, AlertTriangle
 import { translateText } from '@/services/translation'; // Assuming this service exists
 import { saveQuizResult } from '@/lib/firebase/firestore'; // Import firestore function
 import type { QuizResult } from '@/types/user';
 import { useRouter } from 'next/navigation'; // For redirecting after submit
+import { Alert } from '../ui/alert';
 
 interface QuizClientProps {
   questions: Question[];
@@ -39,10 +40,25 @@ export function QuizClient({ questions, userId, onQuizSubmit }: QuizClientProps)
   const { toast } = useToast();
   const router = useRouter();
 
+  // Handle the case where no questions are provided (e.g., error during fetch)
+   if (!questions || questions.length === 0) {
+      // You might want to show a message here or rely on the parent component's error handling
+      return (
+          <div className="flex flex-1 items-center justify-center p-4 text-center">
+             <Alert variant="destructive" className="max-w-lg">
+                <AlertTriangle className="h-4 w-4" />
+                <CardTitle>Quiz Error</CardTitle>
+                <CardDescription>
+                    No questions were loaded for this quiz. Please try again later or contact support.
+                 </CardDescription>
+             </Alert>
+          </div>
+      );
+   }
 
   const currentQuestion = questions[currentQuestionIndex];
   const totalQuestions = questions.length;
-  const progress = ((currentQuestionIndex + 1) / totalQuestions) * 100;
+  const progress = totalQuestions > 0 ? ((currentQuestionIndex + 1) / totalQuestions) * 100 : 0;
 
   // --- Translation Handling ---
   const getTranslatedText = (textObj: TranslatedText | string): string => {
