@@ -98,9 +98,21 @@ body {
    }
 }
 
+/* Add keyframes for floating animation */
+@keyframes float {
+  0% { transform: translateY(0px) rotate(-1deg); }
+  50% { transform: translateY(-10px) rotate(1deg); }
+  100% { transform: translateY(0px) rotate(-1deg); }
+}
+
 @layer components {
   /* Add custom component styles if needed */
   .container {
       @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
   }
+
+  /* Apply animation */
+  .animate-float {
+      animation: float 6s ease-in-out infinite;
+   }
 }
