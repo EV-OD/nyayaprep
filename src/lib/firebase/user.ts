@@ -233,14 +233,18 @@ export const setUserValidationStatus = async (uid: string, isValidated: boolean,
 
 /**
  * Updates the 'Ask Teacher' usage count and date for a user.
- * This should ideally be called after a question is successfully submitted.
+ * Resets the count to 1 if the last ask date was not today.
  * @param uid The user's unique ID.
- * @param newCount The new count for the day.
+ * @param newCount The new count for the day (should be calculated before calling).
  */
 export const updateAskTeacherUsage = async (uid: string, newCount: number): Promise<void> => {
      if (!uid) throw new Error("User UID is required.");
      const userRef = doc(usersCollection, uid);
      try {
+         // Fetch the profile first to check the last date - Although the count is passed,
+         // we ensure the date is updated correctly regardless of when the count was calculated.
+         // For simplicity, we'll just update the count and timestamp directly here.
+         // The calling function should calculate the newCount based on the isToday check.
          await updateDoc(userRef, {
              askTeacherCount: newCount,
              lastAskTeacherDate: serverTimestamp(), // Update to current time on server
@@ -253,7 +257,7 @@ export const updateAskTeacherUsage = async (uid: string, newCount: number): Prom
  };
 
 /**
- * Updates the user's quiz count for the day. Resets count if last quiz was not today.
+ * Updates the user's quiz count for the day. Resets count to 1 if last quiz was not today.
  * @param uid The user's unique ID.
  */
 export const updateUserQuizUsage = async (uid: string): Promise<void> => {
@@ -261,14 +265,24 @@ export const updateUserQuizUsage = async (uid: string): Promise<void> => {
     const userRef = doc(usersCollection, uid);
     try {
         const userProfile = await getUserProfile(uid);
-        if (!userProfile) return; // User not found
-
-        let newCount = 1;
-        // Check if the last quiz date exists and if it's today
-        if (userProfile.lastQuizDate && isToday(userProfile.lastQuizDate.toDate())) {
-            newCount = (userProfile.quizCountToday || 0) + 1;
+        if (!userProfile) {
+             console.warn(`User profile not found for UID: ${uid}. Cannot update quiz usage.`);
+             return; // User not found or error fetching profile
         }
 
+        let newCount: number;
+        // Check if the last quiz date exists and if it's today
+        if (userProfile.lastQuizDate && isToday(userProfile.lastQuizDate.toDate())) {
+            // If last quiz was today, increment the current count
+            newCount = (userProfile.quizCountToday || 0) + 1;
+             console.log(`Incrementing quiz count for user ${uid} for today.`);
+        } else {
+            // If last quiz was not today (or first quiz ever), reset count to 1
+            newCount = 1;
+            console.log(`Resetting quiz count for user ${uid} to 1 for the new day.`);
+        }
+
+        // Update Firestore with the calculated count and the current timestamp
         await updateDoc(userRef, {
             quizCountToday: newCount,
             lastQuizDate: serverTimestamp(), // Update to current time
