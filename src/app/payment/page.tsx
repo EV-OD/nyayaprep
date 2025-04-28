@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -9,6 +8,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Loader2, QrCode, MessageSquare, CheckCircle } from 'lucide-react';
 import Image from 'next/image'; // Import next/image
 import { PublicNavbar } from '@/components/layout/public-navbar'; // Import PublicNavbar
+import { auth } from '@/lib/firebase/config';
+import { onAuthStateChanged, User } from 'firebase/auth';
 
 // Replace with your actual eSewa QR code image path and WhatsApp number
 const ESEWA_QR_CODE_URL = '/images/esewa-qr-placeholder.png'; // Placeholder path
@@ -28,43 +29,30 @@ function PaymentComponent() {
     // Directly access plan from searchParams within the component
     const plan = searchParams.get('plan') as SupportedPlan | null;
     const [isLoading, setIsLoading] = React.useState(false);
+    const [user, setUser] = React.useState<User | null>(null);
 
-    // Redirect if plan is missing, invalid, or 'free'
+    React.useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    // Redirect if plan is missing or invalid
     React.useEffect(() => {
         if (!plan || !(plan in planDetails)) {
-            // Allow 'free' plan through register page, but redirect if payment page accessed directly
-            if (plan !== 'free') {
-                router.replace('/pricing');
-            }
+            router.replace('/pricing');
         }
     }, [plan, router]);
+
 
     const handleDoneClick = () => {
         setIsLoading(true);
         // Optionally add a small delay or feedback
         // In a real app, you might want to check if payment was somehow confirmed,
         // but here we just redirect to login as validation is manual.
-        router.push('/login');
+        router.push('/dashboard');
     };
-
-    // Handle the case where the plan is free - shouldn't reach here via normal flow
-    if (plan === 'free') {
-         // Optionally redirect or show a message
-         // router.replace('/dashboard'); // Maybe redirect to dashboard?
-         return (
-             <main className="flex flex-1 items-center justify-center bg-gradient-to-br from-background to-muted/50 p-4 py-10">
-                <Card className="w-full max-w-md shadow-xl border">
-                    <CardHeader className="text-center">
-                        <CardTitle className="text-2xl font-bold text-primary">Registration Complete</CardTitle>
-                         <CardDescription>Your Free plan is active. No payment needed.</CardDescription>
-                    </CardHeader>
-                    <CardFooter>
-                        <Button className="w-full" onClick={() => router.push('/login')}>Go to Login</Button>
-                    </CardFooter>
-                </Card>
-             </main>
-         );
-     }
 
 
     const currentPlan = plan ? planDetails[plan] : null;
@@ -103,12 +91,12 @@ function PaymentComponent() {
 
                     {/* Instructions */}
                     <div className="text-center text-sm text-muted-foreground space-y-2">
-                         <p>Scan the QR code using your eSewa app to complete the payment for the {currentPlan.name} plan.</p>
+                        <p>Scan the QR code using your eSewa app to complete the payment for the {currentPlan.name} plan.</p>
                         <p className="flex items-center justify-center gap-1">
                             <MessageSquare size={14} /> After payment, please send a screenshot to our WhatsApp at:
                         </p>
-                         <p className="font-semibold text-foreground">{WHATSAPP_NUMBER}</p>
-                         <p>Your account will be activated upon verification (usually within a few hours).</p>
+                        <p className="font-semibold text-foreground">{WHATSAPP_NUMBER}</p>
+                        <p>Your account will be activated upon verification (usually within a few hours).</p>
                     </div>
                 </CardContent>
                 <CardFooter>

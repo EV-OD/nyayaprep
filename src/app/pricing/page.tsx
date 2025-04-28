@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -191,7 +190,7 @@ export default function PricingPage() {
                     <Button
                       className={cn('w-full', plan.highlight && !isCurrentPlan ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : 'bg-secondary hover:bg-secondary/80 text-secondary-foreground', isCurrentPlan ? 'bg-blue-500 hover:bg-blue-600 text-white cursor-not-allowed' : '')}
                       size="lg"
-                      onClick={() => !isCurrentPlan && handleSelectPlan(plan.planId)} // Only call handler if not current plan
+                      onClick={() => handleSelectPlan(plan.planId)} // Only call handler if not current plan
                       disabled={isCurrentPlan} // Disable button for current plan
                     >
                       {ctaText}
