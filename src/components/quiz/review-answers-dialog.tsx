@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -43,7 +44,8 @@ export function ReviewAnswersDialog({
           </DialogDescription>
         </DialogHeader>
         {/* Make ScrollArea flexible and define its height */}
-        <ScrollArea className="flex-grow my-4 border rounded-md min-h-[300px] max-h-[calc(80vh-150px)]"> {/* Allow ScrollArea to grow and set max-height */}
+        {/* Ensure ScrollArea uses available vertical space */}
+        <ScrollArea className="flex-1 my-4 border rounded-md min-h-[300px] overflow-y-auto"> {/* Use flex-1 and explicit overflow */}
           <div className="p-4 space-y-4">
             {questions.map((question, index) => {
               const userAnswer = answers.find(a => a.questionId === question.id);
@@ -102,7 +104,7 @@ export function ReviewAnswersDialog({
             )}
           </div>
         </ScrollArea>
-        <DialogFooter className="mt-auto pt-4"> {/* Ensure footer doesn't overlap scroll */}
+        <DialogFooter className="mt-auto pt-4 flex-shrink-0"> {/* Ensure footer doesn't overlap scroll and doesn't shrink */}
           <DialogClose asChild>
             <Button type="button" variant="outline">
               Close
