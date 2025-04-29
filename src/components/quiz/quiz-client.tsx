@@ -124,17 +124,20 @@ export function QuizClient({ questions, userId, userProfile, onQuizSubmit }: Qui
     // Construct the final answers array including the text of questions and answers
     const constructedAnswers: Answer[] = questions.map(q => {
         const selectedAnswerText = selectedAnswers[q.id];
-        const currentQuestionText = q.question?.[language] || 'Question Text N/A';
-        const correctAnswerText = q.correctAnswer?.[language] || 'Correct Answer N/A';
-        const isCorrect = !!selectedAnswerText && selectedAnswerText === correctAnswerText;
+        // Always store EN version for consistency in review, regardless of current display lang
+        const questionTextEn = q.question?.['en'] || 'Question Text N/A';
+        const correctAnswerTextEn = q.correctAnswer?.['en'] || 'Correct Answer N/A';
+        // Check correctness based on EN version
+        const isCorrect = !!selectedAnswerText && selectedAnswerText === (q.correctAnswer?.[language] || ''); // Compare with current language correct answer
+
         if (isCorrect) {
             calculatedScore++;
         }
         return {
             questionId: q.id,
-            questionText: currentQuestionText,
-            selectedAnswer: selectedAnswerText || "Not Answered",
-            correctAnswerText: correctAnswerText,
+            questionText: questionTextEn, // Store English version
+            selectedAnswer: selectedAnswerText || "Not Answered", // Store selected answer (in language it was selected)
+            correctAnswerText: correctAnswerTextEn, // Store English version
             isCorrect: isCorrect,
         };
     });
@@ -144,6 +147,9 @@ export function QuizClient({ questions, userId, userProfile, onQuizSubmit }: Qui
     setScore(finalScore);
 
     const percentage = totalQuestions > 0 ? Math.round((finalScore / totalQuestions) * 100) : 0;
+
+    // Set finished state *before* potentially async operations
+    setQuizFinished(true);
 
     if (userId) {
       const resultData: Omit<QuizResult, 'id' | 'completedAt'> = {
@@ -155,38 +161,44 @@ export function QuizClient({ questions, userId, userProfile, onQuizSubmit }: Qui
       };
       try {
         await saveQuizResult(resultData);
-        try {
-            await onQuizSubmit(); // Call usage update after successful save
-            console.log("Quiz usage updated successfully after result save.");
-        } catch (usageError) {
-             console.error("Failed to update quiz usage after saving result:", usageError);
-        }
+        console.log("Quiz result saved successfully.");
+        // Call usage update *after* saving result
+        await onQuizSubmit();
+        console.log("Quiz usage updated successfully.");
         toast({
           title: "Quiz Submitted!",
           description: `Your result: ${finalScore}/${totalQuestions} (${percentage}%). It has been saved.`,
         });
       } catch (error) {
-        console.error("Failed to save quiz result:", error);
+        console.error("Failed to save quiz result or update usage:", error);
         toast({
           variant: "destructive",
           title: "Submission Error",
-          description: "Could not save your quiz result. Please try again.",
+          description: "Could not save your quiz result or update usage. Please check your dashboard.",
         });
       } finally {
-         setQuizFinished(true);
-         setIsSubmitting(false);
+         setIsSubmitting(false); // Stop loading indicator
       }
     } else {
+        // Guest user: No save, just call usage update
+         try {
+            await onQuizSubmit(); // Call usage update for guest
+            console.log("Guest quiz usage updated.");
+         } catch (error) {
+            console.error("Failed to update guest quiz usage:", error);
+             // Optional: inform guest about potential issue if needed
+         }
          toast({
            title: "Quiz Submitted!",
            description: `Your result: ${finalScore}/${totalQuestions} (${percentage}%). Log in to save results.`,
          });
-         setQuizFinished(true);
-         setIsSubmitting(false);
+         setIsSubmitting(false); // Stop loading indicator
      }
   };
 
   const restartQuiz = () => {
+     // Reset state and potentially redirect or refetch questions
+     // A simple reload might be easiest if allowed by usage limits
      window.location.href = '/quiz';
   };
 
@@ -258,9 +270,9 @@ export function QuizClient({ questions, userId, userProfile, onQuizSubmit }: Qui
              <ReviewAnswersDialog
                  isOpen={showReview}
                  onClose={() => setShowReview(false)}
-                 answers={finalAnswers}
-                 questions={questions}
-                 language={language}
+                 answers={finalAnswers} // Use the final answers state
+                 questions={questions} // Pass original questions for reference
+                 language={'en'} // Always show review in English for consistency
               />
         )}
          {/* Render Upgrade Dialog for Free Users */}
@@ -278,7 +290,7 @@ export function QuizClient({ questions, userId, userProfile, onQuizSubmit }: Qui
   // Quiz Interface
   return (
     <div className="flex flex-col items-center justify-center flex-1 w-full p-4 md:p-8">
-      <Card className="w-full max-w-2xl rounded-xl shadow-lg border overflow-hidden">
+      <Card className="w-full max-w-3xl rounded-xl shadow-lg border overflow-hidden">
         <CardHeader className="p-6 bg-muted/30 border-b">
            <div className="flex justify-between items-center mb-3">
             <CardDescription className="text-sm font-medium text-primary">
@@ -390,37 +402,7 @@ export function QuizClient({ questions, userId, userProfile, onQuizSubmit }: Qui
           </div>
         </CardFooter>
       </Card>
-       <Button
-        variant="link"
-        className="mt-6 text-muted-foreground hover:text-primary"
-        onClick={handleReviewClick} // Use the combined handler
-        disabled={!Object.keys(selectedAnswers).length || isSubmitting}
-      >
-        Review Answers
-      </Button>
-       {/* Render Review Dialog only if needed and allowed */}
-        {!isFreeUser && (
-            <ReviewAnswersDialog
-                isOpen={showReview && !quizFinished} // Only open if !isFreeUser
-                onClose={() => setShowReview(false)}
-                 answers={Object.entries(selectedAnswers).map(([qId, selAns]) => {
-                    const question = questions.find(q => q.id === qId);
-                    const correctAnsText = question?.correctAnswer?.[language] || '';
-                    const questionTextInReviewLang = question?.question?.[language] || '';
-                    const isCorrect = !!question && !!selAns && correctAnsText === selAns;
-                    return {
-                      questionId: qId,
-                      questionText: questionTextInReviewLang,
-                      selectedAnswer: selAns,
-                      correctAnswerText: correctAnsText,
-                      isCorrect: isCorrect
-                    };
-                  })}
-                questions={questions}
-                language={language}
-            />
-        )}
-         {/* Render Upgrade Dialog, always available */}
+       {/* Render Upgrade Dialog, always available for free users */}
         <UpgradeAlertDialog
              isOpen={showUpgradeReviewDialog}
              onClose={() => setShowUpgradeReviewDialog(false)}
@@ -428,6 +410,29 @@ export function QuizClient({ questions, userId, userProfile, onQuizSubmit }: Qui
              featureName="Answer Review"
              onUpgradeClick={handleUpgradeClick}
          />
+         {/* Review Dialog for paid users (or if shown during quiz) */}
+         {!isFreeUser && (
+             <ReviewAnswersDialog
+                 isOpen={showReview}
+                 onClose={() => setShowReview(false)}
+                 answers={Object.entries(selectedAnswers).map(([qId, selAns]) => {
+                    const question = questions.find(q => q.id === qId);
+                    // Always get English for consistency
+                    const correctAnsTextEn = question?.correctAnswer?.['en'] || '';
+                    const questionTextEn = question?.question?.['en'] || '';
+                    const isCorrect = !!question && !!selAns && (question?.correctAnswer?.[language] || '') === selAns;
+                    return {
+                      questionId: qId,
+                      questionText: questionTextEn, // Store EN version
+                      selectedAnswer: selAns, // Store selected answer
+                      correctAnswerText: correctAnsTextEn, // Store EN version
+                      isCorrect: isCorrect
+                    };
+                  })}
+                questions={questions}
+                language={'en'} // Always show review in English
+            />
+         )}
     </div>
   );
 }

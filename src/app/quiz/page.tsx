@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -28,7 +29,8 @@ const QUIZ_LIMITS: Record<SubscriptionPlan, number> = {
 };
 
 // Key for local storage
-const LOCAL_STORAGE_QUIZ_COUNT_KEY = 'guestQuizCount';
+const LOCAL_STORAGE_QUIZ_COUNT_KEY = 'nyayaPrepGuestQuizCount';
+const LOCAL_STORAGE_QUIZ_DATE_KEY = 'nyayaPrepGuestQuizDate';
 
 export default function QuizPage() {
   const [questions, setQuestions] = React.useState<Question[]>([]);
@@ -46,6 +48,9 @@ export default function QuizPage() {
 
   const router = useRouter();
   const { toast } = useToast();
+
+  // Helper to get today's date string
+  const getTodayDateString = () => new Date().toDateString();
 
   // 1. Check Authentication and User Profile
   useEffect(() => {
@@ -90,47 +95,65 @@ export default function QuizPage() {
             }
           } else {
              // Handle profile not found case
-             setProfile(null);
+             setUserProfile(null);
              setCanTakeQuiz(false);
              setError("User profile not found. Cannot start quiz.");
              console.warn("User profile not found for UID:", currentUser.uid);
              // Optionally redirect or show an error state
           }
         } catch (err) {
-            console.error('Failed to load dashboard data:', err);
+            console.error('Failed to load user profile:', err);
             const firebaseError = err as Error;
              if (firebaseError.message.includes('Firestore Query Requires Index')) {
                  console.warn('Dashboard data loading delayed due to Firestore index creation/update.');
              } else {
-                 toast({ variant: 'destructive', title: 'Error', description: 'Failed to load some dashboard data.' });
+                 toast({ variant: 'destructive', title: 'Error', description: 'Failed to load user profile data.' });
              }
+            setCanTakeQuiz(false); // Cannot take quiz if profile load failed
+            setError("Failed to load user data.");
         } finally {
-          setLoadingProfile(false);
+            // setLoadingProfile(false); // Remove if this state is not used elsewhere
         }
       } else {
         // --- Guest User Logic ---
         setUserProfile(null);
         setQuizLimit(1); // Guest limit is 1
 
-         // Read quiz count from localStorage, default to 0
-         let guestQuizCount = Number(localStorage.getItem(LOCAL_STORAGE_QUIZ_COUNT_KEY) || '0');
-         setQuizCountToday(guestQuizCount);
-         if (guestQuizCount >= 1) {
-            setCanTakeQuiz(false);
-            setLimitExceeded(true); // Indicate limit reached
-            console.log("Guest user already completed a quiz this session.");
-         } else {
-             setCanTakeQuiz(true); // Allow guest to take one quiz
-             console.log("Guest user can take a quiz.");
-         }
+        try {
+            const storedDate = localStorage.getItem(LOCAL_STORAGE_QUIZ_DATE_KEY);
+            const storedCount = Number(localStorage.getItem(LOCAL_STORAGE_QUIZ_COUNT_KEY) || '0');
+            const today = getTodayDateString();
 
-        setCanTakeQuiz(true); // Allow guest to take one quiz
-        console.log("Guest user can take a quiz.");
+            let currentGuestCount = 0;
+            if (storedDate === today) {
+                // If date matches today, use the stored count
+                currentGuestCount = storedCount;
+            } else {
+                // If date doesn't match or no date stored, reset count for today
+                localStorage.setItem(LOCAL_STORAGE_QUIZ_DATE_KEY, today);
+                localStorage.setItem(LOCAL_STORAGE_QUIZ_COUNT_KEY, '0');
+            }
+
+            setQuizCountToday(currentGuestCount);
+            if (currentGuestCount >= 1) {
+                setCanTakeQuiz(false);
+                setLimitExceeded(true); // Indicate limit reached
+                console.log("Guest user already completed a quiz today.");
+            } else {
+                setCanTakeQuiz(true); // Allow guest to take one quiz
+                console.log("Guest user can take a quiz today.");
+            }
+        } catch (storageError) {
+            console.error("Error accessing localStorage for guest quiz limit:", storageError);
+            // Assume cannot take quiz if storage fails
+            setCanTakeQuiz(false);
+            setError("Could not verify guest quiz limit.");
+        }
       }
       setLoadingAuth(false);
     });
     return () => unsubscribe();
-  }, [toast]);
+  }, [toast]); // Added toast dependency
 
   // 2. Fetch Questions only if allowed
   useEffect(() => {
@@ -178,53 +201,55 @@ export default function QuizPage() {
 
   // Function to call after quiz submission
   const handleQuizSubmit = async () => {
+    setQuizActive(false); // Quiz is no longer active after submission
     if (currentUser && userProfile) {
       try {
         console.log(`Updating quiz usage for user: ${currentUser.uid}`);
-        // The updateUserQuizUsage function internally checks the date and increments/resets
         await updateUserQuizUsage(currentUser.uid);
 
-        // Fetch profile again to get the absolute latest count after update
-        // This ensures the next check reflects the just-completed quiz
+        // Re-fetch profile to get the accurate count after update
         const updatedProfile = await getUserProfile(currentUser.uid);
         if (updatedProfile) {
-            setUserProfile(updatedProfile); // Update the profile state
-            const newCount = updatedProfile.quizCountToday || 0;
-            setQuizCountToday(newCount); // Update local state with accurate count
-             const limit = QUIZ_LIMITS[updatedProfile.subscription];
-             if (limit !== Infinity && newCount >= limit) {
-                 setLimitExceeded(true); // Set limitExceeded *after* submitting
-                 setCanTakeQuiz(false); // Mark as cannot take more immediately
-                 console.log(`User ${currentUser.uid} reached limit after submission.`);
-             } else {
-                setLimitExceeded(false); // Ensure limit exceeded is false if they haven't reached it
-             }
+          setUserProfile(updatedProfile);
+          const newCount = updatedProfile.quizCountToday || 0;
+          const limit = QUIZ_LIMITS[updatedProfile.subscription];
+          setQuizCountToday(newCount); // Update local state
+          if (limit !== Infinity && newCount >= limit) {
+              setLimitExceeded(true); // Set limit exceeded *after* submitting
+              setCanTakeQuiz(false); // Mark as cannot take more immediately
+              console.log(`User ${currentUser.uid} reached limit after submission.`);
+          } else {
+              setLimitExceeded(false); // Ensure limit exceeded is false if they haven't reached it
+          }
         }
         console.log(`Quiz usage updated for user: ${currentUser.uid}.`);
       } catch (err) {
         console.error("Failed to update quiz usage:", err);
         // Handle error, maybe notify user but let quiz submission proceed
+        toast({ variant: "destructive", title: "Usage Update Failed", description: "Could not update your quiz count." });
       }
     } else {
-      // Guest user submitted
+      // --- Guest user submitted ---
       try {
-          // Read existing quiz count from localStorage
+          const today = getTodayDateString();
           let guestQuizCount = Number(localStorage.getItem(LOCAL_STORAGE_QUIZ_COUNT_KEY) || '0');
-           // Increment the count
-           guestQuizCount++;
-           // Write new quiz count to localStorage
-           localStorage.setItem(LOCAL_STORAGE_QUIZ_COUNT_KEY, String(guestQuizCount));
-           setQuizCountToday(guestQuizCount); // Update state with new count
+          guestQuizCount++; // Increment the count
+          // Write new quiz count and date to localStorage
+          localStorage.setItem(LOCAL_STORAGE_QUIZ_COUNT_KEY, String(guestQuizCount));
+          localStorage.setItem(LOCAL_STORAGE_QUIZ_DATE_KEY, today);
+
+          setQuizCountToday(guestQuizCount); // Update state with new count
           setLimitExceeded(true); // Update state
           setCanTakeQuiz(false); // Mark as cannot take more
-          console.log(`Guest quiz completed, setting session flag. Current count: ${guestQuizCount}`);
+          console.log(`Guest quiz completed, count updated to ${guestQuizCount} for today.`);
       } catch (storageError) {
-          console.error("Failed to set session storage for guest:", storageError);
+          console.error("Failed to set localStorage for guest:", storageError);
+          toast({ variant: "destructive", title: "Storage Error", description: "Could not save guest quiz count." });
       }
     }
   };
 
-  const renderContent = () => {
+   const renderContent = () => {
      // Show loading skeleton during auth check or initial eligibility check
      if (loadingAuth || canTakeQuiz === null) {
        return <QuizLoadingSkeleton />;
@@ -242,11 +267,11 @@ export default function QuizPage() {
                     <Clock className="h-6 w-6" /> Quiz Limit Reached
                   </CardTitle>
                   <CardDescription className="text-muted-foreground">
-                    You have taken the free quiz for today.
+                    You have already taken the free guest quiz for today.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="mb-6">Log in or register to take more quizzes and save your progress.</p>
+                  <p className="mb-6">Please log in or register to take more quizzes and save your progress.</p>
                 </CardContent>
                 <CardFooter className="flex flex-col sm:flex-row justify-center gap-3">
                   <Link href="/login" passHref>
@@ -329,10 +354,23 @@ export default function QuizPage() {
             </div>
           );
         }
+        // Add a default case if none of the above conditions are met, but canTakeQuiz is false
+        return (
+             <div className="flex flex-1 items-center justify-center p-4 text-center">
+               <Alert variant="default" className="max-w-lg">
+                 <AlertTriangle className="h-4 w-4" />
+                 <AlertTitle>Quiz Access Denied</AlertTitle>
+                 <AlertDescription>You cannot access the quiz at this time. This might be due to an error or limit.</AlertDescription>
+                  <Link href={currentUser ? "/dashboard" : "/"} className="mt-4 inline-block">
+                     <Button variant="secondary" size="sm"><ArrowLeft className="mr-2 h-4 w-4" /> Go Back</Button>
+                  </Link>
+               </Alert>
+            </div>
+        );
      }
 
-     // --- If Allowed and Questions are Ready or Loading ---
-    if (canTakeQuiz) {
+     // --- If Allowed and Quiz is Active ---
+    if (canTakeQuiz && quizActive) {
         if (loading) {
             return <QuizLoadingSkeleton />;
         }
@@ -341,7 +379,7 @@ export default function QuizPage() {
                 <div className="flex flex-col items-center justify-center flex-1 w-full p-4 md:p-8">
                     <QuizClient
                     questions={questions}
-                    onQuizSubmit={handleQuizSubmit}
+                    onQuizSubmit={handleQuizSubmit} // Pass the handler
                     userId={currentUser?.uid || null}
                     userProfile={userProfile}
                     />
@@ -364,12 +402,9 @@ export default function QuizPage() {
          }
     }
 
-    // Default fallback (should ideally not be reached often)
-    return (
-         <div className="flex flex-1 items-center justify-center p-4 text-center">
-             <p className="text-muted-foreground">Loading quiz status...</p>
-         </div>
-     );
+    // Default fallback (e.g., waiting for eligibility check or if quiz isn't active yet)
+    // This might show briefly before the limit check or quiz loading starts
+    return <QuizLoadingSkeleton />;
   };
 
   return (

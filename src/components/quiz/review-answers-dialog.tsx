@@ -20,18 +20,19 @@ import { cn } from '@/lib/utils';
 interface ReviewAnswersDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  answers: Answer[]; // Can be partial (in-progress) or final
-  questions: Question[];
-  language: Language;
+  answers: Answer[]; // Final answers array
+  questions: Question[]; // Original questions (optional, might not be needed if Answer has all text)
+  language: Language; // Original language the quiz was taken in (for selectedAnswer)
 }
 
 export function ReviewAnswersDialog({
   isOpen,
   onClose,
   answers,
-  questions,
-  language,
+  questions, // We might not need this if Answer contains all necessary text
+  language, // Keep this to display the selected answer as it was chosen
 }: ReviewAnswersDialogProps) {
+  // Helper to find original question if needed, though Answer type should have text
   const getQuestionById = (id: string): Question | undefined => questions.find(q => q.id === id);
 
   return (
@@ -40,23 +41,23 @@ export function ReviewAnswersDialog({
         <DialogHeader>
           <DialogTitle>Review Your Answers</DialogTitle>
           <DialogDescription>
-            Check your selections or review your final results.
+            Check your selections or review your final results. (Content shown in English)
           </DialogDescription>
         </DialogHeader>
         {/* Make ScrollArea flexible and define its height */}
         {/* Ensure ScrollArea uses available vertical space */}
         <ScrollArea className="flex-1 my-4 border rounded-md min-h-[300px] overflow-y-auto"> {/* Use flex-1 and explicit overflow */}
           <div className="p-4 space-y-4">
-            {questions.map((question, index) => {
-              const userAnswer = answers.find(a => a.questionId === question.id);
-              const questionText = question.question?.[language] || 'Question text unavailable';
-              const correctAnswerText = question.correctAnswer?.[language] || 'Correct answer unavailable';
-              const selectedAnswerText = userAnswer?.selectedAnswer;
-              const isCorrect = userAnswer?.isCorrect;
-              const isAnswered = userAnswer && userAnswer.selectedAnswer !== "Not Answered";
+            {answers.length > 0 ? answers.map((userAnswer, index) => {
+              // Use the text directly from the userAnswer object (which should be English)
+              const questionText = userAnswer.questionText || 'Question text unavailable';
+              const correctAnswerText = userAnswer.correctAnswerText || 'Correct answer unavailable';
+              const selectedAnswerText = userAnswer.selectedAnswer;
+              const isCorrect = userAnswer.isCorrect;
+              const isAnswered = userAnswer.selectedAnswer !== "Not Answered";
 
               return (
-                <div key={question.id} className="p-4 border rounded-lg bg-card shadow-sm"> {/* Added shadow */}
+                <div key={userAnswer.questionId} className="p-4 border rounded-lg bg-card shadow-sm"> {/* Added shadow */}
                   <p className="font-semibold mb-2 text-sm">
                     {`Q${index + 1}: ${questionText}`}
                   </p>
@@ -68,9 +69,10 @@ export function ReviewAnswersDialog({
                             isCorrect ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                           )}>
                            {isCorrect ? <CheckCircle size={14} className="mt-0.5 shrink-0" /> : <XCircle size={14} className="mt-0.5 shrink-0" />}
-                           <span className="font-medium">Your Answer:</span> <span className="flex-1">{selectedAnswerText}</span> {/* Use flex-1 */}
+                           {/* Display selected answer as it was chosen */}
+                           <span className="font-medium">Your Answer:</span> <span className="flex-1">{selectedAnswerText}</span>
                         </p>
-                         {/* Show correct answer only if the selected one was wrong */}
+                         {/* Show correct answer (English) only if the selected one was wrong */}
                          {!isCorrect && (
                            <p className="flex items-start gap-1.5 text-green-600 dark:text-green-400"> {/* Use start alignment and gap */}
                               <CheckCircle size={14} className="mt-0.5 shrink-0" />
@@ -85,7 +87,7 @@ export function ReviewAnswersDialog({
                           <AlertCircle size={14} className="mt-0.5 shrink-0" />
                           <span className="font-medium">Your Answer:</span> <span className="flex-1 italic">Not Answered</span> {/* Use flex-1 */}
                         </p>
-                        {/* Always show the correct answer if unanswered */}
+                        {/* Always show the correct answer (English) if unanswered */}
                         <p className="flex items-start gap-1.5 text-green-600 dark:text-green-400"> {/* Use start alignment and gap */}
                             <CheckCircle size={14} className="mt-0.5 shrink-0" />
                             <span className="font-medium">Correct Answer:</span> <span className="flex-1">{correctAnswerText}</span> {/* Use flex-1 */}
@@ -95,12 +97,8 @@ export function ReviewAnswersDialog({
                   </div>
                 </div>
               );
-            })}
-            {questions.length === 0 && (
-                <p className="text-center text-muted-foreground p-4">No questions to review.</p>
-            )}
-             {questions.length > 0 && answers.length === 0 && (
-                <p className="text-center text-muted-foreground p-4">No answers selected yet.</p>
+            }) : (
+                 <p className="text-center text-muted-foreground p-4">No answers to review for this quiz.</p>
             )}
           </div>
         </ScrollArea>
