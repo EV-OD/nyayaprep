@@ -22,14 +22,8 @@ import { getUserProfile } from '@/lib/firebase/firestore';
 import type { UserProfile } from '@/types/user';
 
 // Define the SVG logo component
-const LogoIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" className="h-6 w-6">
-        <path d="M10 90 L50 70 L90 90 L90 80 L50 60 L10 80 Z" fill="#2E8B57" stroke="black" strokeWidth="2"/> {/* Bottom layer (Greenish) */}
-        <path d="M10 80 L50 60 L90 80 L90 70 L50 50 L10 70 Z" fill="#2E8B57" stroke="black" strokeWidth="2"/> {/* Middle layer (Greenish) */}
-        <path d="M10 70 L50 50 L90 70 V60 Q 50 40 10 60 Z" fill="white" stroke="black" strokeWidth="2"/> {/* Book pages (White) */}
-        <path d="M50 50 L50 70" stroke="black" strokeWidth="2"/> {/* Book spine */}
-    </svg>
-);
+import LogoIcon from "@components/LogoIcon"
+
 
 
 export function UserHeader() {
