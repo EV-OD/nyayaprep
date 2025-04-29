@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { LogOut, User, LayoutDashboard, ClipboardList, BookOpenCheck } from 'lucide-react';
+import { LogOut, User, LayoutDashboard, ClipboardList } from 'lucide-react'; // Removed BookOpenCheck
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +20,17 @@ import { signOut, User as FirebaseUser } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 import { getUserProfile } from '@/lib/firebase/firestore';
 import type { UserProfile } from '@/types/user';
+
+// Define the SVG logo component
+const LogoIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" className="h-6 w-6">
+        <path d="M10 90 L50 70 L90 90 L90 80 L50 60 L10 80 Z" fill="#2E8B57" stroke="black" strokeWidth="2"/> {/* Bottom layer (Greenish) */}
+        <path d="M10 80 L50 60 L90 80 L90 70 L50 50 L10 70 Z" fill="#2E8B57" stroke="black" strokeWidth="2"/> {/* Middle layer (Greenish) */}
+        <path d="M10 70 L50 50 L90 70 V60 Q 50 40 10 60 Z" fill="white" stroke="black" strokeWidth="2"/> {/* Book pages (White) */}
+        <path d="M50 50 L50 70" stroke="black" strokeWidth="2"/> {/* Book spine */}
+    </svg>
+);
+
 
 export function UserHeader() {
   const router = useRouter();
@@ -81,7 +92,8 @@ export function UserHeader() {
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 sm:px-6">
       <div className="flex items-center gap-4">
         <Link href="/dashboard" className="text-lg font-semibold md:text-xl text-primary flex items-center gap-2">
-           <BookOpenCheck size={24} /> NyayaPrep
+           <LogoIcon /> {/* Use the SVG Logo */}
+           NyayaPrep
         </Link>
          {/* Optional: Breadcrumbs or navigation links */}
           <nav className="hidden md:flex items-center gap-4 text-sm ml-6">

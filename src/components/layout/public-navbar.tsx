@@ -3,12 +3,23 @@
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { BookOpenCheck, LogIn, UserPlus, DollarSign, BrainCircuit, LayoutDashboard } from 'lucide-react'; // Import icons including LayoutDashboard
+import { LogIn, UserPlus, DollarSign, BrainCircuit, LayoutDashboard } from 'lucide-react'; // Removed BookOpenCheck
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react'; // Import hooks
 import { auth } from '@/lib/firebase/config'; // Import auth
 import { onAuthStateChanged, User } from 'firebase/auth'; // Import auth types
+
+// Define the SVG logo component
+const LogoIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" className="h-6 w-6">
+        <path d="M10 90 L50 70 L90 90 L90 80 L50 60 L10 80 Z" fill="#2E8B57" stroke="black" strokeWidth="2"/> {/* Bottom layer (Greenish) */}
+        <path d="M10 80 L50 60 L90 80 L90 70 L50 50 L10 70 Z" fill="#2E8B57" stroke="black" strokeWidth="2"/> {/* Middle layer (Greenish) */}
+        <path d="M10 70 L50 50 L90 70 V60 Q 50 40 10 60 Z" fill="white" stroke="black" strokeWidth="2"/> {/* Book pages (White) */}
+        <path d="M50 50 L50 70" stroke="black" strokeWidth="2"/> {/* Book spine */}
+    </svg>
+);
+
 
 export function PublicNavbar() {
     const pathname = usePathname();
@@ -26,7 +37,7 @@ export function PublicNavbar() {
 
 
     const navItems = [
-        { href: '/', label: 'Home', icon: <BookOpenCheck size={16} /> },
+        { href: '/', label: 'Home' }, // Removed icon temporarily, Logo is now used for Brand
         { href: '/pricing', label: 'Pricing', icon: <DollarSign size={16} /> },
         { href: '/quiz', label: 'Quiz', icon: <BrainCircuit size={16} /> },
         // Add other public links if needed
@@ -37,7 +48,7 @@ export function PublicNavbar() {
             {/* Logo and Main Nav */}
             <div className="flex items-center gap-6">
                 <Link href="/" className="flex items-center gap-2 text-lg font-semibold text-primary">
-                    <BookOpenCheck size={24} />
+                    <LogoIcon /> {/* Use the SVG Logo */}
                     <span className="hidden sm:inline-block">NyayaPrep</span>
                 </Link>
                 <nav className="hidden md:flex items-center gap-4 text-sm">
