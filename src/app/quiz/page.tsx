@@ -9,7 +9,7 @@ import type { Question } from '@/types/quiz';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PublicNavbar } from '@/components/layout/public-navbar';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, Lock, Clock, ArrowLeft } from 'lucide-react';
+import { AlertTriangle, Lock, Clock, ArrowLeft, LogIn } from 'lucide-react'; // Added LogIn
 import { getRandomMcqs, getUserProfile, updateUserQuizUsage } from '@/lib/firebase/firestore'; // Import Firestore functions
 import { auth } from '@/lib/firebase/config';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -27,6 +27,9 @@ const QUIZ_LIMITS: Record<SubscriptionPlan, number> = {
   premium: Infinity, // Unlimited
 };
 
+// Key for session storage
+const GUEST_QUIZ_COMPLETED_KEY = 'guestQuizCompleted';
+
 export default function QuizPage() {
   const [questions, setQuestions] = React.useState<Question[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -40,6 +43,7 @@ export default function QuizPage() {
   const [quizLimit, setQuizLimit] = React.useState(0);
   const [validationNeeded, setValidationNeeded] = React.useState(false);
   const [quizActive, setQuizActive] = React.useState(false); // Track if quiz is active
+  const [guestLimitReached, setGuestLimitReached] = React.useState(false); // Track guest limit
 
   const router = useRouter();
 
@@ -50,10 +54,12 @@ export default function QuizPage() {
     setLimitExceeded(false);
     setValidationNeeded(false);
     setQuizActive(false); // Reset quiz active state
+    setGuestLimitReached(false); // Reset guest limit
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
+        // --- Logged-in User Logic ---
         try {
           const profile = await getUserProfile(user.uid);
           setUserProfile(profile); // Store fetched profile
@@ -95,12 +101,20 @@ export default function QuizPage() {
           setCanTakeQuiz(false);
         }
       } else {
-        // Not logged in - allow guests to take quiz (results not saved)
+        // --- Guest User Logic ---
         setUserProfile(null);
-        setCanTakeQuiz(true);
-        setQuizLimit(QUIZ_LIMITS.free);
+        setQuizLimit(1); // Guest limit is 1
         setQuizCountToday(0);
-        console.log("Guest user can take a quiz.");
+        // Check session storage
+        const guestCompleted = sessionStorage.getItem(GUEST_QUIZ_COMPLETED_KEY) === 'true';
+        if (guestCompleted) {
+            setCanTakeQuiz(false);
+            setGuestLimitReached(true);
+            console.log("Guest user already completed a quiz this session.");
+        } else {
+            setCanTakeQuiz(true); // Allow guest to take one quiz
+            console.log("Guest user can take a quiz.");
+        }
       }
       setLoadingAuth(false);
     });
@@ -153,7 +167,7 @@ export default function QuizPage() {
 
   // Function to call after quiz submission
   const handleQuizSubmit = async () => {
-    if (currentUser) {
+    if (currentUser && userProfile) {
       try {
         console.log(`Updating quiz usage for user: ${currentUser.uid}`);
         // The updateUserQuizUsage function internally checks the date and increments/resets
@@ -169,14 +183,26 @@ export default function QuizPage() {
              const limit = QUIZ_LIMITS[updatedProfile.subscription];
              if (limit !== Infinity && newCount >= limit) {
                  setLimitExceeded(true); // Set limitExceeded *after* submitting
-                 // We don't set canTakeQuiz = false here, let the component re-render handle eligibility display
+                 setCanTakeQuiz(false); // Mark as cannot take more immediately
                  console.log(`User ${currentUser.uid} reached limit after submission.`);
+             } else {
+                setLimitExceeded(false); // Ensure limit exceeded is false if they haven't reached it
              }
         }
         console.log(`Quiz usage updated for user: ${currentUser.uid}.`);
       } catch (err) {
         console.error("Failed to update quiz usage:", err);
         // Handle error, maybe notify user but let quiz submission proceed
+      }
+    } else {
+      // Guest user submitted
+      try {
+         sessionStorage.setItem(GUEST_QUIZ_COMPLETED_KEY, 'true');
+         setGuestLimitReached(true); // Update state
+         setCanTakeQuiz(false); // Mark as cannot take more
+         console.log("Guest quiz completed, setting session flag.");
+      } catch (storageError) {
+          console.error("Failed to set session storage for guest:", storageError);
       }
     }
   };
@@ -188,9 +214,8 @@ export default function QuizPage() {
        return <QuizLoadingSkeleton />;
      }
 
-    // --- If Quiz is NOT active (or just finished), check for blocking conditions ---
-    // Note: This block now runs AFTER quizActive check, so it applies when navigating back or after finish
-     if (!quizActive) {
+    // Check blocking conditions FIRST
+    if (!canTakeQuiz) {
         if (validationNeeded && currentUser) {
              return (
                 <div className="flex flex-1 items-center justify-center p-4 text-center">
@@ -246,6 +271,34 @@ export default function QuizPage() {
             );
          }
 
+        if (guestLimitReached && !currentUser) {
+          return (
+            <div className="flex flex-1 items-center justify-center p-4 text-center">
+              <Card className="w-full max-w-md text-center p-6 md:p-8 rounded-xl shadow-lg border">
+                <CardHeader>
+                  <CardTitle className="text-2xl font-bold text-destructive flex items-center justify-center gap-2">
+                    <Clock className="h-6 w-6" /> Quiz Limit Reached
+                  </CardTitle>
+                  <CardDescription className="text-muted-foreground">
+                    You have taken the guest quiz for this session.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="mb-6">Log in or register to take more quizzes and save your progress.</p>
+                </CardContent>
+                <CardFooter className="flex flex-col sm:flex-row justify-center gap-3">
+                  <Link href="/login" passHref>
+                    <Button size="lg"><LogIn className="mr-2 h-4 w-4" /> Login</Button>
+                  </Link>
+                  <Link href="/pricing" passHref>
+                    <Button variant="outline" size="lg">Register</Button>
+                  </Link>
+                </CardFooter>
+              </Card>
+            </div>
+          );
+        }
+
         if (error) {
           return (
             <div className="flex flex-1 items-center justify-center p-4 text-center">
@@ -260,45 +313,40 @@ export default function QuizPage() {
             </div>
           );
         }
-         // Fallback if eligibility check is done, user CAN take quiz, but questions aren't ready yet and no error (should be brief)
-         if (canTakeQuiz && !loading && questions.length === 0 && !error) {
-           return (
-             <div className="flex flex-1 items-center justify-center p-4 text-center">
-               <Alert variant="default" className="max-w-lg">
-                 <AlertTitle>Quiz Unavailable</AlertTitle>
-                 <AlertDescription>No questions are available for a quiz right now. Please try again later.</AlertDescription>
-                 <Link href={currentUser ? "/dashboard" : "/"} className="mt-4 inline-block">
-                   <Button variant="secondary" size="sm"><ArrowLeft className="mr-2 h-4 w-4" /> Go Back</Button>
-                 </Link>
-               </Alert>
-             </div>
-           );
-         }
      }
 
-    // --- If Quiz IS Active ---
-    if (quizActive) {
-       // Show loading skeleton only if questions are still loading *while* active
-       if (loading) {
-           return <QuizLoadingSkeleton />;
-       }
-       // Render QuizClient if questions are ready or if there was an error loading them (QuizClient might show error)
-       if (questions.length > 0 || error) {
-           return (
-             <div className="flex flex-col items-center justify-center flex-1 w-full p-4 md:p-8"> {/* Make parent full width */}
-                <QuizClient
-                   questions={questions}
-                   onQuizSubmit={handleQuizSubmit} // Pass the submit handler
-                   userId={currentUser?.uid || null} // Pass user ID
-                   userProfile={userProfile} // Pass user profile for plan check
-                />
-             </div>
-           );
+     // --- If Allowed and Questions are Ready or Loading ---
+    if (canTakeQuiz) {
+        if (loading) {
+            return <QuizLoadingSkeleton />;
         }
-         // Fallback if active but no questions and no error yet (should be brief)
-         return <QuizLoadingSkeleton />;
+         if (questions.length > 0) {
+             return (
+                <div className="flex flex-col items-center justify-center flex-1 w-full p-4 md:p-8">
+                    <QuizClient
+                    questions={questions}
+                    onQuizSubmit={handleQuizSubmit}
+                    userId={currentUser?.uid || null}
+                    userProfile={userProfile}
+                    />
+                </div>
+             );
+         }
+         // Handle case where questions failed to load but no error was explicitly set
+         if (!loading && questions.length === 0 && !error) {
+            return (
+               <div className="flex flex-1 items-center justify-center p-4 text-center">
+                 <Alert variant="default" className="max-w-lg">
+                   <AlertTitle>Quiz Unavailable</AlertTitle>
+                   <AlertDescription>No questions are available for a quiz right now. Please try again later.</AlertDescription>
+                   <Link href={currentUser ? "/dashboard" : "/"} className="mt-4 inline-block">
+                     <Button variant="secondary" size="sm"><ArrowLeft className="mr-2 h-4 w-4" /> Go Back</Button>
+                   </Link>
+                 </Alert>
+               </div>
+             );
+         }
     }
-
 
     // Default fallback (should ideally not be reached often)
     return (
@@ -345,4 +393,5 @@ function QuizLoadingSkeleton() {
     </div>
   );
 }
+
 
