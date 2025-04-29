@@ -1,4 +1,5 @@
 
+
 'use client'; // Mark as client component
 
 import Link from 'next/link';
@@ -42,7 +43,7 @@ export default function Home() {
             {/* Background decorative elements - Enhanced & More Visible */}
             {/* Increased overall container opacity */}
             <div className="absolute inset-0 z-0 opacity-60 dark:opacity-40">
-                {/* Larger blurred circles (blobs) with increased opacity */}
+                {/* Larger blurred circles (blobs) */}
                 <div className="absolute -left-20 w-72 h-72 bg-primary/30 rounded-full filter blur-3xl animate-pulse"></div>
                 {/* Adjusted bottom-right blob position */}
                 <div className="absolute bottom-10 right-10 w-64 h-64 bg-teal-500/30 rounded-full filter blur-3xl animate-pulse animation-delay-400"></div>
@@ -88,14 +89,24 @@ export default function Home() {
                 </div>
 
                 {/* Image Section */}
-                <div className="relative md:block hidden w-full flex justify-center items-center">
-                    {/* Apply blob shape and border directly to image */}
-                    <img
-                        src="/images/hero.png"
-                        alt="Urban Streetview of Classic New York Architecture"
-                        className="relative z-10 -mt-5 mx-auto shadow-xl w-[calc(100%-150px)] h-auto object-cover rounded-[40%_60%_60%_40%/70%_30%_70%_30%] border-2 border-primary/30"
-                    />
-                </div>
+                 <div className="relative md:block hidden w-full flex justify-center items-center">
+                     {/* Background Blob Shape */}
+                     <div
+                         className="absolute inset-0 flex items-center justify-center"
+                         aria-hidden="true"
+                     >
+                         <div
+                             className="w-[calc(100%-90px)] h-[calc(100%-90px)] bg-primary/10 dark:bg-primary/20 border-2 border-primary/30 shadow-xl opacity-70" // Sized slightly larger than image, adjust as needed
+                             style={{ clipPath: 'polygon(75% 0%, 100% 50%, 75% 100%, 0% 100%, 25% 50%, 0% 0%)' }} // Blob clip-path
+                         />
+                     </div>
+                      {/* Circular Image */}
+                      <img
+                          src="/images/hero.png" // Make sure this path is correct
+                          alt="Urban Streetview of Classic New York Architecture"
+                          className="relative z-10 w-[calc(100%-150px)] h-auto rounded-full object-cover shadow-lg" // Make image circular
+                      />
+                 </div>
              </div>
          </section>
 
