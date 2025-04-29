@@ -1,8 +1,9 @@
+
 'use client';
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { LogIn, UserPlus, DollarSign, BrainCircuit, LayoutDashboard } from 'lucide-react'; // Removed BookOpenCheck
+import { LogIn, UserPlus, DollarSign, Home, LayoutDashboard, Info, Mail } from 'lucide-react'; // Added Home, Info, Mail icons, removed BrainCircuit
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react'; // Import hooks
@@ -29,10 +30,11 @@ export function PublicNavbar() {
 
 
     const navItems = [
-        { href: '/', label: 'Home' }, // Removed icon temporarily, Logo is now used for Brand
+        { href: '/', label: 'Home', icon: <Home size={16} /> },
         { href: '/pricing', label: 'Pricing', icon: <DollarSign size={16} /> },
-        { href: '/quiz', label: 'Quiz', icon: <BrainCircuit size={16} /> },
-        // Add other public links if needed
+        { href: '/about', label: 'About', icon: <Info size={16} /> }, // Added About Us
+        { href: '/contact', label: 'Contact', icon: <Mail size={16} /> }, // Added Contact
+        // { href: '/quiz', label: 'Quiz', icon: <BrainCircuit size={16} /> }, // Removed Quiz link
     ];
 
     return (
