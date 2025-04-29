@@ -22,7 +22,7 @@ import { getUserProfile } from '@/lib/firebase/firestore';
 import type { UserProfile } from '@/types/user';
 
 // Define the SVG logo component
-import LogoIcon from "@components/LogoIcon"
+import LogoIcon from "@/components/LogoIcon";
 
 
 
