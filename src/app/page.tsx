@@ -90,21 +90,11 @@ export default function Home() {
 
                 {/* Image Section */}
                  <div className="relative md:block hidden w-full flex justify-center items-center">
-                     {/* Background Blob Shape */}
-                     <div
-                         className="absolute inset-0 flex items-center justify-center"
-                         aria-hidden="true"
-                     >
-                         <div
-                             className="w-[calc(100%-90px)] h-[calc(100%-90px)] bg-primary/10 dark:bg-primary/20 border-2 border-primary/30 shadow-xl opacity-70" // Sized slightly larger than image, adjust as needed
-                             style={{ clipPath: 'polygon(75% 0%, 100% 50%, 75% 100%, 0% 100%, 25% 50%, 0% 0%)' }} // Blob clip-path
-                         />
-                     </div>
                       {/* Circular Image */}
                       <img
-                          src="/images/hero.png" // Make sure this path is correct
+                          src="/images/hero3.png" // Make sure this path is correct
                           alt="Urban Streetview of Classic New York Architecture"
-                          className="relative z-10 w-[calc(100%-150px)] h-auto rounded-full object-cover shadow-lg" // Make image circular
+                          className="relative z-10 w-[calc(100%-150px)] h-auto object-cover shadow-lg" // Make image circular
                       />
                  </div>
              </div>
