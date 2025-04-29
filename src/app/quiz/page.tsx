@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -9,15 +8,16 @@ import type { Question } from '@/types/quiz';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PublicNavbar } from '@/components/layout/public-navbar';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, Lock, Clock, ArrowLeft, LogIn } from 'lucide-react'; // Added LogIn
-import { getRandomMcqs, getUserProfile, updateUserQuizUsage } from '@/lib/firebase/firestore'; // Import Firestore functions
+import { AlertTriangle, Lock, Clock, ArrowLeft, LogIn } from 'lucide-react';
+import { getRandomMcqs, getUserProfile, updateUserQuizUsage } from '@/lib/firebase/firestore';
 import { auth } from '@/lib/firebase/config';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { isToday } from 'date-fns';
 import type { UserProfile, SubscriptionPlan } from '@/types/user';
-import { Button } from '@/components/ui/button'; // Import Button
-import Link from 'next/link'; // Import Link
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'; // Import Card components
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
 
 const NUMBER_OF_QUESTIONS = 10; // Define the number of questions for a quiz
 
@@ -27,8 +27,8 @@ const QUIZ_LIMITS: Record<SubscriptionPlan, number> = {
   premium: Infinity, // Unlimited
 };
 
-// Key for session storage
-const GUEST_QUIZ_COMPLETED_KEY = 'guestQuizCompleted';
+// Key for local storage
+const LOCAL_STORAGE_QUIZ_COUNT_KEY = 'guestQuizCount';
 
 export default function QuizPage() {
   const [questions, setQuestions] = React.useState<Question[]>([]);
@@ -43,9 +43,9 @@ export default function QuizPage() {
   const [quizLimit, setQuizLimit] = React.useState(0);
   const [validationNeeded, setValidationNeeded] = React.useState(false);
   const [quizActive, setQuizActive] = React.useState(false); // Track if quiz is active
-  const [guestLimitReached, setGuestLimitReached] = React.useState(false); // Track guest limit
 
   const router = useRouter();
+  const { toast } = useToast();
 
   // 1. Check Authentication and User Profile
   useEffect(() => {
@@ -54,14 +54,13 @@ export default function QuizPage() {
     setLimitExceeded(false);
     setValidationNeeded(false);
     setQuizActive(false); // Reset quiz active state
-    setGuestLimitReached(false); // Reset guest limit
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      if (user) {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setCurrentUser(currentUser);
+      if (currentUser) {
         // --- Logged-in User Logic ---
         try {
-          const profile = await getUserProfile(user.uid);
+          const profile = await getUserProfile(currentUser.uid);
           setUserProfile(profile); // Store fetched profile
           if (profile) {
             const limit = QUIZ_LIMITS[profile.subscription];
@@ -80,46 +79,58 @@ export default function QuizPage() {
             if (isPaidAndNotValidated) {
                setCanTakeQuiz(false);
                setValidationNeeded(true);
-               console.log(`User ${user.uid} needs validation for ${profile.subscription} plan.`);
+               console.log(`User ${currentUser.uid} needs validation for ${profile.subscription} plan.`);
             } else if (isOverLimit) {
                setCanTakeQuiz(false);
                setLimitExceeded(true); // Set limit exceeded here
-               console.log(`User ${user.uid} reached daily quiz limit.`);
+               console.log(`User ${currentUser.uid} reached daily quiz limit.`);
             } else {
                setCanTakeQuiz(true); // Can take quiz initially
-               console.log(`User ${user.uid} can take a quiz. Count: ${todayCount}, Limit: ${limit}`);
+               console.log(`User ${currentUser.uid} can take a quiz. Count: ${todayCount}, Limit: ${limit}`);
             }
           } else {
-            // Profile not found
-            setCanTakeQuiz(false);
-            setError("User profile not found. Cannot start quiz.");
-            console.warn(`Profile not found for UID: ${user.uid}`);
+             // Handle profile not found case
+             setProfile(null);
+             setCanTakeQuiz(false);
+             setError("User profile not found. Cannot start quiz.");
+             console.warn("User profile not found for UID:", currentUser.uid);
+             // Optionally redirect or show an error state
           }
         } catch (err) {
-          console.error("Failed to fetch user profile for quiz check:", err);
-          setError("Could not verify your quiz eligibility. Please try again.");
-          setCanTakeQuiz(false);
+            console.error('Failed to load dashboard data:', err);
+            const firebaseError = err as Error;
+             if (firebaseError.message.includes('Firestore Query Requires Index')) {
+                 console.warn('Dashboard data loading delayed due to Firestore index creation/update.');
+             } else {
+                 toast({ variant: 'destructive', title: 'Error', description: 'Failed to load some dashboard data.' });
+             }
+        } finally {
+          setLoadingProfile(false);
         }
       } else {
         // --- Guest User Logic ---
         setUserProfile(null);
         setQuizLimit(1); // Guest limit is 1
-        setQuizCountToday(0);
-        // Check session storage
-        const guestCompleted = sessionStorage.getItem(GUEST_QUIZ_COMPLETED_KEY) === 'true';
-        if (guestCompleted) {
+
+         // Read quiz count from localStorage, default to 0
+         let guestQuizCount = Number(localStorage.getItem(LOCAL_STORAGE_QUIZ_COUNT_KEY) || '0');
+         setQuizCountToday(guestQuizCount);
+         if (guestQuizCount >= 1) {
             setCanTakeQuiz(false);
-            setGuestLimitReached(true);
+            setLimitExceeded(true); // Indicate limit reached
             console.log("Guest user already completed a quiz this session.");
-        } else {
-            setCanTakeQuiz(true); // Allow guest to take one quiz
-            console.log("Guest user can take a quiz.");
-        }
+         } else {
+             setCanTakeQuiz(true); // Allow guest to take one quiz
+             console.log("Guest user can take a quiz.");
+         }
+
+        setCanTakeQuiz(true); // Allow guest to take one quiz
+        console.log("Guest user can take a quiz.");
       }
       setLoadingAuth(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [toast]);
 
   // 2. Fetch Questions only if allowed
   useEffect(() => {
@@ -197,25 +208,59 @@ export default function QuizPage() {
     } else {
       // Guest user submitted
       try {
-         sessionStorage.setItem(GUEST_QUIZ_COMPLETED_KEY, 'true');
-         setGuestLimitReached(true); // Update state
-         setCanTakeQuiz(false); // Mark as cannot take more
-         console.log("Guest quiz completed, setting session flag.");
+          // Read existing quiz count from localStorage
+          let guestQuizCount = Number(localStorage.getItem(LOCAL_STORAGE_QUIZ_COUNT_KEY) || '0');
+           // Increment the count
+           guestQuizCount++;
+           // Write new quiz count to localStorage
+           localStorage.setItem(LOCAL_STORAGE_QUIZ_COUNT_KEY, String(guestQuizCount));
+           setQuizCountToday(guestQuizCount); // Update state with new count
+          setLimitExceeded(true); // Update state
+          setCanTakeQuiz(false); // Mark as cannot take more
+          console.log(`Guest quiz completed, setting session flag. Current count: ${guestQuizCount}`);
       } catch (storageError) {
           console.error("Failed to set session storage for guest:", storageError);
       }
     }
   };
 
-
   const renderContent = () => {
-    // Show loading skeleton during auth check or initial eligibility check
+     // Show loading skeleton during auth check or initial eligibility check
      if (loadingAuth || canTakeQuiz === null) {
        return <QuizLoadingSkeleton />;
      }
 
     // Check blocking conditions FIRST
     if (!canTakeQuiz) {
+       // Guest User reached Limit
+        if (!currentUser && limitExceeded) {
+          return (
+            <div className="flex flex-1 items-center justify-center p-4 text-center">
+              <Card className="w-full max-w-md text-center p-6 md:p-8 rounded-xl shadow-lg border">
+                <CardHeader>
+                  <CardTitle className="text-2xl font-bold text-destructive flex items-center justify-center gap-2">
+                    <Clock className="h-6 w-6" /> Quiz Limit Reached
+                  </CardTitle>
+                  <CardDescription className="text-muted-foreground">
+                    You have taken the free quiz for today.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="mb-6">Log in or register to take more quizzes and save your progress.</p>
+                </CardContent>
+                <CardFooter className="flex flex-col sm:flex-row justify-center gap-3">
+                  <Link href="/login" passHref>
+                    <Button size="lg"><LogIn className="mr-2 h-4 w-4" /> Login</Button>
+                  </Link>
+                  <Link href="/pricing" passHref>
+                    <Button variant="outline" size="lg">Register</Button>
+                  </Link>
+                </CardFooter>
+              </Card>
+            </div>
+          );
+        }
+
         if (validationNeeded && currentUser) {
              return (
                 <div className="flex flex-1 items-center justify-center p-4 text-center">
@@ -270,36 +315,7 @@ export default function QuizPage() {
               </div>
             );
          }
-
-        if (guestLimitReached && !currentUser) {
-          return (
-            <div className="flex flex-1 items-center justify-center p-4 text-center">
-              <Card className="w-full max-w-md text-center p-6 md:p-8 rounded-xl shadow-lg border">
-                <CardHeader>
-                  <CardTitle className="text-2xl font-bold text-destructive flex items-center justify-center gap-2">
-                    <Clock className="h-6 w-6" /> Quiz Limit Reached
-                  </CardTitle>
-                  <CardDescription className="text-muted-foreground">
-                    You have taken the guest quiz for this session.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="mb-6">Log in or register to take more quizzes and save your progress.</p>
-                </CardContent>
-                <CardFooter className="flex flex-col sm:flex-row justify-center gap-3">
-                  <Link href="/login" passHref>
-                    <Button size="lg"><LogIn className="mr-2 h-4 w-4" /> Login</Button>
-                  </Link>
-                  <Link href="/pricing" passHref>
-                    <Button variant="outline" size="lg">Register</Button>
-                  </Link>
-                </CardFooter>
-              </Card>
-            </div>
-          );
-        }
-
-        if (error) {
+       if (error) {
           return (
             <div className="flex flex-1 items-center justify-center p-4 text-center">
                <Alert variant="destructive" className="max-w-lg">
@@ -371,7 +387,7 @@ export default function QuizPage() {
 function QuizLoadingSkeleton() {
   return (
     <div className="flex flex-col items-center justify-center flex-1 p-4 md:p-8">
-      <div className="w-full max-w-3xl bg-card p-6 md:p-8 rounded-xl shadow-lg border">
+      <Card className="w-full max-w-3xl bg-card p-6 md:p-8 rounded-xl shadow-lg border">
          <Skeleton className="h-4 w-1/4 mb-4" />
         <Skeleton className="h-8 w-full mb-6" />
         <div className="space-y-4 mb-8">
@@ -389,9 +405,7 @@ function QuizLoadingSkeleton() {
             <Skeleton className="h-10 w-32 rounded-md" />
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
-
-
