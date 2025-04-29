@@ -1,4 +1,3 @@
-
 'use client'; // Mark as client component
 
 import Link from 'next/link';
@@ -36,8 +35,7 @@ export default function Home() {
        {/* Hero Section */}
        <main className="flex-1">
          <section className="relative py-20 md:py-32 lg:py-40 flex items-center justify-center text-center px-4 overflow-hidden">
-             {/* Animated Background Component */}
-             <AnimatedMcqBackground />
+           <AnimatedMcqBackground />
 
             {/* Background decorative elements - Enhanced & More Visible */}
             {/* Increased overall container opacity */}
@@ -60,30 +58,42 @@ export default function Home() {
                  <div className="absolute top-1/4 right-1/4 w-60 h-60 bg-secondary/30 rounded-full filter blur-2xl animate-pulse animation-delay-200"></div>
             </div>
 
-            <div className="relative z-10 max-w-4xl mx-auto">
-                <h1 className="text-4xl font-extrabold tracking-tight text-primary sm:text-5xl md:text-6xl lg:text-7xl leading-tight drop-shadow-lg">
-                 NyayaPrep
-                </h1>
-                {/* Shortened and restyled description */}
-                <p className="mt-6 text-xl font-medium text-foreground/90 sm:text-2xl md:text-3xl max-w-2xl mx-auto drop-shadow-sm">
-                  Master Law Exams. <span className="text-primary">Practice MCQs</span>, Track Progress, Succeed.
-                </p>
-                <p className="mt-4 text-base italic text-muted-foreground max-w-lg mx-auto">
-                 "Study Smarter. Practice Harder. Achieve Greater."
-                </p>
-                <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-                 <Link href="/quiz" passHref>
-                    <Button size="lg" className="w-full sm:w-auto shadow-lg hover:shadow-primary/30 transition-shadow duration-300 transform hover:-translate-y-0.5">
-                        <BrainCircuit className="mr-2 h-5 w-5" /> Start Quiz Now
-                    </Button>
-                 </Link>
-                 <Link href="/pricing" passHref>
-                    <Button size="lg" variant="outline" className="w-full sm:w-auto shadow-sm hover:shadow-md transition-shadow duration-300 border-primary/50 hover:bg-primary/5 transform hover:-translate-y-0.5">
-                        <DollarSign className="mr-2 h-5 w-5" /> View Plans
-                    </Button>
-                 </Link>
+             <div className="relative z-10 max-w-7xl mx-auto grid md:grid-cols-2 items-center gap-8 px-4 sm:px-6 lg:px-8">
+                {/* Content Section */}
+                <div className="text-center md:text-left">
+                    <h1 className="text-4xl font-extrabold tracking-tight text-primary sm:text-5xl md:text-6xl lg:text-7xl leading-tight drop-shadow-lg">
+                        NyayaPrep
+                    </h1>
+                    {/* Shortened and restyled description */}
+                    <p className="mt-6 text-xl font-medium text-foreground/90 sm:text-2xl md:text-3xl max-w-2xl mx-auto md:mx-0 drop-shadow-sm">
+                        Master Law Exams. <span className="text-primary">Practice MCQs</span>, Track Progress, Succeed.
+                    </p>
+                    <p className="mt-4 text-base italic text-muted-foreground max-w-lg mx-auto md:mx-0">
+                        "Study Smarter. Practice Harder. Achieve Greater."
+                    </p>
+                    <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+                        <Link href="/quiz" passHref>
+                            <Button size="lg" className="w-full sm:w-auto shadow-lg hover:shadow-primary/30 transition-shadow duration-300 transform hover:-translate-y-0.5">
+                                <BrainCircuit className="mr-2 h-5 w-5" /> Start Quiz Now
+                            </Button>
+                        </Link>
+                        <Link href="/pricing" passHref>
+                            <Button size="lg" variant="outline" className="w-full sm:w-auto shadow-sm hover:shadow-md transition-shadow duration-300 border-primary/50 hover:bg-primary/5 transform hover:-translate-y-0.5">
+                                <DollarSign className="mr-2 h-5 w-5" /> View Plans
+                            </Button>
+                        </Link>
+                    </div>
                 </div>
-            </div>
+
+                {/* Image Section */}
+                <div className="md:block">
+                    <img
+                        src="https://images.pexels.com/photos/30135207/pexels-photo-30135207/free-photo-of-urban-streetview-of-classic-new-york-architecture.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2"
+                        alt="Urban Streetview of Classic New York Architecture"
+                        className="rounded-lg shadow-xl w-full h-auto object-cover" // Ensure image covers the area
+                    />
+                </div>
+             </div>
          </section>
 
          {/* Features Section */}
@@ -160,3 +170,4 @@ export default function Home() {
     </div>
   );
 }
+
