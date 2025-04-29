@@ -1,3 +1,4 @@
+
 'use client'; // Mark as client component
 
 import Link from 'next/link';
@@ -35,6 +36,7 @@ export default function Home() {
        {/* Hero Section */}
        <main className="flex-1">
          <section className="relative py-20 md:py-32 lg:py-40 flex items-center justify-center text-center px-4 overflow-hidden">
+           {/* Background Animation Component */}
            <AnimatedMcqBackground />
 
             {/* Background decorative elements - Enhanced & More Visible */}
@@ -60,7 +62,7 @@ export default function Home() {
 
              <div className="relative z-10 max-w-7xl mx-auto grid md:grid-cols-2 items-center gap-8 px-4 sm:px-6 lg:px-8">
                 {/* Content Section */}
-                <div className="text-center md:text-left">
+                <div className="text-center md:text-left md:-mt-5 ">
                     <h1 className="text-4xl font-extrabold tracking-tight text-primary sm:text-5xl md:text-6xl lg:text-7xl leading-tight drop-shadow-lg">
                         NyayaPrep
                     </h1>
@@ -86,11 +88,12 @@ export default function Home() {
                 </div>
 
                 {/* Image Section */}
-                <div className="md:block">
+                <div className="relative md:block hidden w-full flex justify-center items-center">
+                    {/* Apply blob shape and border directly to image */}
                     <img
-                        src="https://images.pexels.com/photos/30135207/pexels-photo-30135207/free-photo-of-urban-streetview-of-classic-new-york-architecture.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2"
+                        src="/images/hero.png"
                         alt="Urban Streetview of Classic New York Architecture"
-                        className="rounded-lg shadow-xl w-full h-auto object-cover" // Ensure image covers the area
+                        className="relative z-10 -mt-5 mx-auto shadow-xl w-[calc(100%-150px)] h-auto object-cover rounded-[40%_60%_60%_40%/70%_30%_70%_30%] border-2 border-primary/30"
                     />
                 </div>
              </div>
@@ -170,4 +173,3 @@ export default function Home() {
     </div>
   );
 }
-
