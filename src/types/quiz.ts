@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 
 export interface TranslatedText {
@@ -25,9 +26,9 @@ export interface Question {
 
 export interface Answer {
   questionId: string;
-  questionText: string; // Store the question text (in the language it was asked)
+  questionText: string; // Store the question text (Preferably consistent language like EN)
   selectedAnswer: string; // Store the selected answer text (in the language it was selected)
-  correctAnswerText: string; // Store the correct answer text (in the language it was asked)
+  correctAnswerText: string; // Store the correct answer text (Preferably consistent language like EN)
   isCorrect: boolean;
 }
 
