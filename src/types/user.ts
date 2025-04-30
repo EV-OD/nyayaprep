@@ -51,3 +51,13 @@ export interface TeacherQuestion {
     // answerFileUrl?: string | null; // Optional: URL for answer file (skipped for now)
 }
 
+// TypeScript type for a message
+export interface Message {
+  id?: string;
+  name: string;
+  email: string;
+  address?: string;
+  phone?: string;
+  message: string;
+  createdAt?: Timestamp;
+}

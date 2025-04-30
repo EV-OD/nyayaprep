@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -6,26 +5,30 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ListChecks, Users, HelpCircle, PlusCircle, Settings } from 'lucide-react';
+import { ListChecks, Users, HelpCircle, PlusCircle, Settings, Mail } from 'lucide-react';
 import type { Question } from '@/types/quiz';
-import type { UserProfile, TeacherQuestion } from '@/types/user';
+import type { UserProfile, TeacherQuestion, Message } from '@/types/user';
 
 interface OverviewTabProps {
   mcqs: Question[];
   users: UserProfile[];
   teacherQuestions: TeacherQuestion[];
+  messages: Message[];
   isLoadingMCQs: boolean;
   isLoadingUsers: boolean;
   isLoadingTeacherQuestions: boolean;
+  isLoadingMessages: boolean;
 }
 
 export function OverviewTab({
   mcqs,
   users,
   teacherQuestions,
+  messages,
   isLoadingMCQs,
   isLoadingUsers,
   isLoadingTeacherQuestions,
+  isLoadingMessages,
 }: OverviewTabProps) {
 
   // Calculate pending question count directly here
@@ -62,23 +65,31 @@ export function OverviewTab({
               {isLoadingTeacherQuestions ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold">{pendingQuestionCount}</div>}
             </CardContent>
           </Card>
-          {/* Add more relevant overview cards */}
+          <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">User Messages</CardTitle>
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                  {isLoadingMessages ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold">{messages.length}</div>}
+              </CardContent>
+          </Card>
 
           {/* Quick Actions */}
           <Card className="col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-4 bg-card p-6 flex flex-col sm:flex-row gap-4 items-center justify-center">
             <Link href="/admin/mcqs/add" passHref>
-              <Button size="lg" className="w-full sm:w-auto">
-                <PlusCircle className="mr-2 h-5 w-5" /> Add New MCQ
+              <Button size="sm" className="w-full sm:w-auto">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add New MCQ
               </Button>
             </Link>
             <Link href="/admin/mcqs" passHref>
-              <Button variant="outline" size="lg" className="w-full sm:w-auto">
-                <ListChecks className="mr-2 h-5 w-5" /> Manage MCQs
+              <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                <ListChecks className="mr-2 h-4 w-4" /> Manage MCQs
               </Button>
             </Link>
             <Link href="/admin/settings" passHref>
-              <Button variant="ghost" size="lg" className="w-full sm:w-auto text-muted-foreground hover:text-foreground">
-                <Settings className="mr-2 h-5 w-5" /> Settings
+              <Button variant="ghost" size="sm" className="w-full sm:w-auto text-muted-foreground hover:text-foreground">
+                <Settings className="mr-2 h-4 w-4" /> Settings
               </Button>
             </Link>
           </Card>
