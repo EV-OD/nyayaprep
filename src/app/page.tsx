@@ -94,7 +94,7 @@ export default function Home() {
                       <img
                           src="/images/hero3.png" // Make sure this path is correct
                           alt="Urban Streetview of Classic New York Architecture"
-                          className="relative z-10 w-[calc(100%-150px)] h-auto object-cover shadow-lg" // Make image circular
+                          className="mx-auto relative z-10 w-[calc(100%-150px)] h-auto object-cover shadow-lg" // Make image circular
                       />
                  </div>
              </div>
