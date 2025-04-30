@@ -201,7 +201,7 @@ export default function QuizPage() {
 
   // Function to call after quiz submission
   const handleQuizSubmit = async () => {
-    setQuizActive(false); // Quiz is no longer active after submission
+    // setQuizActive(false); // Quiz is no longer active after submission
     if (currentUser && userProfile) {
       try {
         console.log(`Updating quiz usage for user: ${currentUser.uid}`);
