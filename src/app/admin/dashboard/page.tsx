@@ -1,17 +1,16 @@
-
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { PlusCircle, Search, Loader2, ListChecks } from 'lucide-react';
+import { PlusCircle, Search, Loader2, ListChecks, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Question } from '@/types/quiz';
-import type { UserProfile, SubscriptionPlan, TeacherQuestion } from '@/types/user';
+import type { UserProfile, SubscriptionPlan, TeacherQuestion, Message } from '@/types/user';
 import { AdminHeader } from '@/components/admin/admin-header';
 import { cn } from '@/lib/utils';
 import {
@@ -21,6 +20,7 @@ import {
     answerTeacherQuestion,
     getAllMcqs,
     getAllUsers,
+    fetchMessages,
 } from '@/lib/firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
 import { format, addWeeks } from 'date-fns';
@@ -32,17 +32,20 @@ import { UserTable, UserTableSkeleton } from '@/components/admin/dashboard/UserT
 import { TeacherQuestionsTab, TeacherQuestionsSkeleton } from '@/components/admin/dashboard/TeacherQuestionsTab';
 import { AnswerDialog } from '@/components/admin/dashboard/AnswerDialog';
 import { ValidationDialog } from '@/components/admin/dashboard/ValidationDialog';
+import { MessagesTab } from '@/components/admin/dashboard/MessagesTab';
 
 export default function AdminDashboardPage() {
   const [mcqs, setMcqs] = React.useState<Question[]>([]);
   const [users, setUsers] = React.useState<UserProfile[]>([]);
   const [teacherQuestions, setTeacherQuestions] = React.useState<TeacherQuestion[]>([]);
+  const [messages, setMessages] = React.useState<Message[]>([]);
   const [isLoadingMCQs, setIsLoadingMCQs] = React.useState(true);
   const [isLoadingUsers, setIsLoadingUsers] = React.useState(true);
   const [isLoadingTeacherQuestions, setIsLoadingTeacherQuestions] = React.useState(true);
+  const [isLoadingMessages, setIsLoadingMessages] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [searchTerm, setSearchTerm] = React.useState('');
-  const [activeTab, setActiveTab] = React.useState<'overview' | 'users' | 'teacherQuestions'>('overview');
+  const [activeTab, setActiveTab] = React.useState<'overview' | 'users' | 'teacherQuestions' | 'messages'>('overview');
   const [currentAdminUid, setCurrentAdminUid] = React.useState<string | null>(null);
   const [answerDialogOpen, setAnswerDialogOpen] = React.useState(false);
   const [selectedQuestionToAnswer, setSelectedQuestionToAnswer] = React.useState<TeacherQuestion | null>(null);
@@ -113,16 +116,33 @@ export default function AdminDashboardPage() {
       }
     };
 
+    const fetchMessagesData = async () => {
+        setIsLoadingMessages(true);
+        try {
+            const fetchedMessages = await fetchMessages();
+            setMessages(fetchedMessages);
+        } catch (err) {
+            console.error("Failed to fetch messages:", err);
+            setError(prev => prev || "Failed to load messages.");
+            toast({variant: "destructive", title: "Loading Error", description: "Could not load messages."});
+        } finally {
+            setIsLoadingMessages(false);
+        }
+    };
+
     setError(null); // Reset error before fetching
 
     if (activeTab === 'overview') {
         fetchMcqCount();
         fetchUsersData();
         fetchTeacherQuestionsData();
+        fetchMessagesData();
     } else if (activeTab === 'users') {
         fetchUsersData();
     } else if (activeTab === 'teacherQuestions') {
         fetchTeacherQuestionsData();
+    } else if (activeTab === 'messages') {
+        fetchMessagesData();
     }
   }, [activeTab, toast]);
 
@@ -236,13 +256,17 @@ export default function AdminDashboardPage() {
                   </span>
                 )}
               </TabsTrigger>
+              <TabsTrigger value="messages">
+                  User Messages ({isLoadingMessages ? '...' : messages.length})
+                  <Mail className="ml-2 h-4 w-4" />
+              </TabsTrigger>
             </TabsList>
-            {(activeTab === 'users' || activeTab === 'teacherQuestions') && (
+            {(activeTab === 'users' || activeTab === 'teacherQuestions' || activeTab === 'messages') && (
               <div className="relative w-full sm:max-w-xs">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
-                  placeholder={activeTab === 'users' ? "Search name, email, phone, plan..." : "Search questions, user..."}
+                  placeholder={activeTab === 'users' ? "Search name, email, phone, plan..." : activeTab === 'teacherQuestions' ? "Search questions, user..." : "Search messages..."}
                   className="pl-8 w-full"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -271,9 +295,11 @@ export default function AdminDashboardPage() {
                 mcqs={mcqs}
                 users={users}
                 teacherQuestions={teacherQuestions}
+                messages={messages}
                 isLoadingMCQs={isLoadingMCQs}
                 isLoadingUsers={isLoadingUsers}
                 isLoadingTeacherQuestions={isLoadingTeacherQuestions}
+                isLoadingMessages={isLoadingMessages}
              />
           </TabsContent>
 
@@ -296,6 +322,13 @@ export default function AdminDashboardPage() {
                 searchTerm={searchTerm} // Pass necessary props
                 users={users}          // Pass necessary props
              />
+          </TabsContent>
+          <TabsContent value="messages">
+              <MessagesTab
+                messages={messages}
+                isLoading={isLoadingMessages}
+                searchTerm={searchTerm}
+              />
           </TabsContent>
         </Tabs>
 
