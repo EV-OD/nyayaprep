@@ -38,6 +38,8 @@ export function MessagesTab({ messages, isLoading, searchTerm }: MessagesTabProp
           <TableRow>
             <TableHead className="w-[150px]">Name</TableHead>
             <TableHead>Email</TableHead>
+            <TableHead>Phone</TableHead>
+
             <TableHead>Message</TableHead>
             <TableHead className="text-right">Submitted At</TableHead>
           </TableRow>
@@ -47,6 +49,8 @@ export function MessagesTab({ messages, isLoading, searchTerm }: MessagesTabProp
             <TableRow key={message.id}>
               <TableCell className="font-medium">{message.name}</TableCell>
               <TableCell>{message.email}</TableCell>
+              <TableCell>{message.phone}</TableCell>
+
               <TableCell className="max-w-[300px] truncate">{message.message}</TableCell>
               <TableCell className="text-right">
                 {message.createdAt ? format(message.createdAt.toDate(), 'PPP p') : 'N/A'}
