@@ -71,10 +71,11 @@ export default function ContactPage() {
         }
 
         // --- Placeholder Logic ---
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
-        toast({ title: "Message Sent)", description: "Thank you for contacting us. We'll get back to you soon." });
-        form.reset(); // Reset form after submission
-        setIsLoading(false);
+        // Removed simulation as we have actual Firebase integration
+        // await new Promise(resolve => setTimeout(resolve, 1500));
+        // toast({ title: "Message Sent (Placeholder)", description: "Thank you for contacting us. We'll get back to you soon." });
+        // form.reset();
+        // setIsLoading(false);
         // --- End Placeholder Logic ---
     };
 
@@ -214,4 +215,3 @@ export default function ContactPage() {
         </div>
     );
 }
-
