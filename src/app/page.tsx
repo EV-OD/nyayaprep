@@ -94,8 +94,12 @@ export default function Home() {
                       <img
                           src="/images/hero3.png" // Make sure this path is correct
                           alt="Urban Streetview of Classic New York Architecture"
-                          className="mx-auto relative z-10 w-[calc(100%-150px)] h-auto object-cover shadow-lg" // Make image circular
+                          className="mx-auto relative z-10 w-[calc(100%-150px)] h-auto object-cover shadow-lg rounded-full" // Keep image circular
                       />
+                      {/* Blob Outline Placeholder */}
+                      <svg className="absolute inset-0 z-0 w-full h-full scale-110 opacity-50 text-primary" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                          <path fill="currentColor" d="M63.4,-25.8C74.1,0.3,69.1,31.2,51.1,48.4C33.1,65.6,2.2,69,-25.2,59.4C-52.6,49.8,-76.4,27.2,-78.3,-2.6C-80.2,-32.5,-60.2,-61.5,-36.8,-71.2C-13.5,-80.9,13.2,-71.2,34.1,-55.6C55,-39.9,69.1,-18.3,63.4,-25.8Z" transform="translate(100 100) scale(0.9)"></path>
+                      </svg>
                  </div>
              </div>
          </section>
@@ -165,12 +169,13 @@ export default function Home() {
                     NyayaPrep &copy; {new Date().getFullYear()}. All rights reserved.
                  </p>
                  <div className="flex gap-4 text-sm text-muted-foreground">
-                      <Link href="/about" className="hover:text-primary transition-colors">About</Link>
-                      <Link href="/contact" className="hover:text-primary transition-colors">Contact</Link>
                       <Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
+                      <Link href="/terms" className="hover:text-primary transition-colors">Terms & Conditions</Link>
+                      <Link href="/disclaimer" className="hover:text-primary transition-colors">Disclaimer</Link>
                  </div>
             </div>
         </footer>
     </div>
   );
 }
+
