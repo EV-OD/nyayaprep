@@ -15,6 +15,7 @@ const roboto_mono = Roboto_Mono({
   variable: '--font-mono', // Use standard variable name
   subsets: ['latin'],
   display: 'swap',
+  preload: false, // Disable preload for Roboto Mono
 });
 
 export const metadata: Metadata = {
@@ -28,8 +29,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+    // Add variables to HTML tag
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${roboto_mono.variable}`}>
-      {/* The body tag must immediately follow the html tag without any whitespace */}
+      {/* Use font-sans utility */}
       <body className={`font-sans antialiased`}>
         {/* Add ThemeProvider here if needed for dark/light mode toggle */}
         {children}
