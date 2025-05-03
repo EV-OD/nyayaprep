@@ -64,7 +64,7 @@ export function AnswerHistoryCard({ locked, loading, results, onUpgradeClick }: 
             {loading ? (
               <AnswerHistorySkeleton />
             ) : results.length > 0 ? (
-               <ScrollArea className="flex-grow h-0 min-h-[150px]"> {/* Allow scroll area to take up space */}
+               <ScrollArea className="flex-grow max-h-[350px] h-full"> {/* Allow scroll area to take up space */}
                    <div className="space-y-2 pr-3">
                      {results.map(result => (
                        <div key={result.id} className="flex justify-between items-center p-3 border rounded-md hover:bg-muted/50 transition-colors">
