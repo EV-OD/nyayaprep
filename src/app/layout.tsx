@@ -19,9 +19,36 @@ const roboto_mono = Roboto_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'NyayaPrep - BALLB MCQ Preparation', // Updated title
-  description: 'Your ultimate platform for BALLB multiple choice question preparation.', // Updated description
+  title: 'NyayaPrep - BALLB MCQ Preparation',
+  description: 'NyayaPrep - Nepal\'s Leading MCQ-Based Legal Exam Preparation Platform. Master law exams with practice MCQs, progress tracking, and expert guidance.',
+  keywords: ['NyayaPrep', 'MCQ', 'Legal Exam', 'Nepal', 'Law Preparation', 'Advocate License'],
+  authors: [{ name: 'NyayaPrep Team' }],
+  metadataBase: new URL('https://nyayaprep.vercel.app'),
+  openGraph: {
+    title: 'NyayaPrep - Legal Exam Preparation',
+    description: 'Master law exams with NyayaPrep\'s MCQ practice, progress tracking, and expert guidance.',
+    url: 'https://nyayaprep.vercel.app',
+    type: 'website',
+    images: [
+      {
+        url: '/images/hero.png',
+        width: 1200,
+        height: 630,
+        alt: 'NyayaPrep Hero Image',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'NyayaPrep - Legal Exam Preparation',
+    description: 'Master law exams with NyayaPrep\'s MCQ practice, progress tracking, and expert guidance.',
+    images: ['/images/hero.png'],
+  },
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
+
 
 export default function RootLayout({
   children,
