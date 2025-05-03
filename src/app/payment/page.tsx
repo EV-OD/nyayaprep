@@ -14,7 +14,7 @@ import { updateUserProfileDocument } from '@/lib/firebase/user';
 
 // Replace with your actual eSewa QR code image path and WhatsApp number
 const ESEWA_QR_CODE_URL = '/images/esewa-qr-placeholder.png'; // Placeholder path
-const WHATSAPP_NUMBER = '+97798XXXXXXXX'; // Placeholder number
+const WHATSAPP_NUMBER = '+977 986-0249284'; // Placeholder number
 
 // Plan details (updated prices)
 const planDetails = {

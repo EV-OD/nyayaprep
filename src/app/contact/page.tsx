@@ -92,8 +92,8 @@ export default function ContactPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="text-center text-muted-foreground">
-                        <p className="mt-2 font-medium">Email: support@nyayaprep.com</p>
-                        <p className="mt-1 font-medium">Phone: +977 98XXXXXXXX</p>
+                        <p className="mt-2 font-medium">Email: nyayaprep@gmail.com</p>
+                        <p className="mt-1 font-medium">Phone: +977 986-0249284</p>
                     </CardContent>
                 </Card>
 

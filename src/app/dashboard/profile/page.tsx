@@ -23,7 +23,7 @@ import { useToast } from '@/hooks/use-toast'; // Import useToast
 import { useRouter } from 'next/navigation'; // Import useRouter
 
 // WhatsApp number for validation
-const WHATSAPP_NUMBER = '+97798XXXXXXXX'; // Placeholder number
+const WHATSAPP_NUMBER = '+977 986-0249284'; // Placeholder number
 
 // Updated subscription details including color classes (consistent with dashboard)
 const subscriptionDetails: Record<SubscriptionPlan, { name: string; colorClass: string; price: string; }> = {
