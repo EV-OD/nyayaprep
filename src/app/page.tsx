@@ -89,17 +89,22 @@ export default function Home() {
                 </div>
 
                 {/* Image Section */}
-                 <div className="relative md:block hidden w-full flex justify-center items-center">
+                 <div className="relative md:block hidden w-full justify-center items-center">
                       {/* Circular Image */}
-                      <img
+                      {/* <img
                           src="/images/hero3.png" // Make sure this path is correct
                           alt="Urban Streetview of Classic New York Architecture"
-                          className="mx-auto relative z-10 w-[calc(100%-150px)] h-auto object-cover shadow-lg rounded-full" // Keep image circular
+                          className="mx-auto relative z-10 w-[calc(100%-150px)] h-auto object-cover shadow-lg rounded-md" // Keep image circular
+                      /> */}
+                      <img
+                          src="/hero.png" // Make sure this path is correct
+                          alt="Urban Streetview of Classic New York Architecture"
+                          className="mx-auto relative z-10 w-[calc(100%-150px)] h-auto object-cover  rounded-md" // Keep image circular
                       />
                       {/* Blob Outline Placeholder */}
-                      <svg className="absolute inset-0 z-0 w-full h-full scale-110 opacity-50 text-primary" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                      {/* <svg className="absolute inset-0 z-0 w-full h-full scale-110 opacity-50 text-primary" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
                           <path fill="currentColor" d="M63.4,-25.8C74.1,0.3,69.1,31.2,51.1,48.4C33.1,65.6,2.2,69,-25.2,59.4C-52.6,49.8,-76.4,27.2,-78.3,-2.6C-80.2,-32.5,-60.2,-61.5,-36.8,-71.2C-13.5,-80.9,13.2,-71.2,34.1,-55.6C55,-39.9,69.1,-18.3,63.4,-25.8Z" transform="translate(100 100) scale(0.9)"></path>
-                      </svg>
+                      </svg> */}
                  </div>
              </div>
          </section>
