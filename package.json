@@ -9,7 +9,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postbuild": "next-sitemap"
+
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.0.4",
@@ -44,6 +46,7 @@
     "genkit": "^1.0.4",
     "lucide-react": "^0.475.0",
     "next": "15.2.3",
+    "next-sitemap": "^4.2.3",
     "papaparse": "^5.4.1",
     "patch-package": "^8.0.0",
     "react": "^18.3.1",

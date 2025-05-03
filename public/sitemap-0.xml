@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:mobile="http://www.google.com/schemas/sitemap-mobile/1.0" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
+<url><loc>https://nyayaprep.vercel.app/about</loc><lastmod>2025-05-03T17:00:09.014Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://nyayaprep.vercel.app/contact</loc><lastmod>2025-05-03T17:00:09.015Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://nyayaprep.vercel.app/login</loc><lastmod>2025-05-03T17:00:09.015Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://nyayaprep.vercel.app</loc><lastmod>2025-05-03T17:00:09.015Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://nyayaprep.vercel.app/payment</loc><lastmod>2025-05-03T17:00:09.015Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://nyayaprep.vercel.app/disclaimer</loc><lastmod>2025-05-03T17:00:09.015Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://nyayaprep.vercel.app/privacy</loc><lastmod>2025-05-03T17:00:09.015Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://nyayaprep.vercel.app/quiz</loc><lastmod>2025-05-03T17:00:09.015Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://nyayaprep.vercel.app/register</loc><lastmod>2025-05-03T17:00:09.015Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://nyayaprep.vercel.app/terms</loc><lastmod>2025-05-03T17:00:09.015Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://nyayaprep.vercel.app/admin/dashboard</loc><lastmod>2025-05-03T17:00:09.016Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://nyayaprep.vercel.app/admin/mcqs/add</loc><lastmod>2025-05-03T17:00:09.016Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://nyayaprep.vercel.app/admin/mcqs</loc><lastmod>2025-05-03T17:00:09.016Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://nyayaprep.vercel.app/admin/settings</loc><lastmod>2025-05-03T17:00:09.016Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://nyayaprep.vercel.app/admin/users</loc><lastmod>2025-05-03T17:00:09.016Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://nyayaprep.vercel.app/dashboard</loc><lastmod>2025-05-03T17:00:09.016Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://nyayaprep.vercel.app/dashboard/profile</loc><lastmod>2025-05-03T17:00:09.016Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://nyayaprep.vercel.app/pricing</loc><lastmod>2025-05-03T17:00:09.016Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+</urlset>

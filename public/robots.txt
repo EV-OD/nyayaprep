@@ -1,0 +1,9 @@
+# *
+User-agent: *
+Allow: /
+
+# Host
+Host: https://nyayaprep.vercel.app
+
+# Sitemaps
+Sitemap: https://nyayaprep.vercel.app/sitemap.xml
