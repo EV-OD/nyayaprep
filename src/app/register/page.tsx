@@ -20,6 +20,8 @@ import { createUserWithEmailAndPassword, AuthError, onAuthStateChanged, User } f
 import { createUserProfileDocument } from '@/lib/firebase/user'; // Updated import path
 import type { SubscriptionPlan } from '@/types/user'; // Import SubscriptionPlan type
 import { PublicNavbar } from '@/components/layout/public-navbar'; // Import PublicNavbar
+import { Eye, EyeOff } from 'lucide-react';
+
 
 const phoneRegex = new RegExp(
   /^([+]?[\s0-9]+)?(\d{3}|[(]?[0-9]+[)])?([-]?[\s]?[0-9])+$/
@@ -55,6 +57,8 @@ function RegisterFormComponent() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null); // For image preview
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true); // Track auth state loading
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Check auth state
   useEffect(() => {
@@ -303,33 +307,84 @@ function RegisterFormComponent() {
                             <FormMessage />
                         </FormItem>
                         )}
-                    />
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="Create a password (min. 6 characters)" {...field} disabled={isLoading} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="confirmPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Confirm Password</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="Confirm your password" {...field} disabled={isLoading} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                                  />
+                                   {/* Password Fields with Visibility Toggle */}
+                                   <FormField
+                                   control={form.control}
+                                   name="password"
+                                   render={({ field }) => (
+                                     <FormItem>
+                                     <FormLabel>Password</FormLabel>
+                                     <FormControl>
+                                       <div className="relative">
+                                       <Input
+                                         type={showPassword ? 'text' : 'password'}
+                                         placeholder="Create a password (min. 6 characters)"
+                                         {...field}
+                                         disabled={isLoading}
+                                         className="pr-10" // Add padding to prevent text overlap
+                                       />
+                                       <Button
+                                         type="button" // Prevent form submission
+                                         variant="ghost"
+                                         size="sm"
+                                         className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                         onClick={() => setShowPassword((prev) => !prev)}
+                                         disabled={isLoading}
+                                       >
+                                         {showPassword ? (
+                                         <EyeOff className="h-4 w-4" aria-hidden="true" />
+                                         ) : (
+                                         <Eye className="h-4 w-4" aria-hidden="true" />
+                                         )}
+                                         <span className="sr-only">
+                                         {showPassword ? 'Hide password' : 'Show password'}
+                                         </span>
+                                       </Button>
+                                       </div>
+                                     </FormControl>
+                                     <FormMessage />
+                                     </FormItem>
+                                   )}
+                                   />
+                                   <FormField
+                                   control={form.control}
+                                   name="confirmPassword"
+                                   render={({ field }) => (
+                                     <FormItem>
+                                     <FormLabel>Confirm Password</FormLabel>
+                                     <FormControl>
+                                       <div className="relative">
+                                       <Input
+                                         type={showConfirmPassword ? 'text' : 'password'}
+                                         placeholder="Confirm your password"
+                                         {...field}
+                                         disabled={isLoading}
+                                         className="pr-10" // Add padding
+                                       />
+                                       <Button
+                                         type="button" // Prevent form submission
+                                         variant="ghost"
+                                         size="sm"
+                                         className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                         onClick={() => setShowConfirmPassword((prev) => !prev)}
+                                         disabled={isLoading}
+                                       >
+                                         {showConfirmPassword ? (
+                                         <EyeOff className="h-4 w-4" aria-hidden="true" />
+                                         ) : (
+                                         <Eye className="h-4 w-4" aria-hidden="true" />
+                                         )}
+                                         <span className="sr-only">
+                                         {showConfirmPassword ? 'Hide password' : 'Show password'}
+                                         </span>
+                                       </Button>
+                                       </div>
+                                     </FormControl>
+                                     <FormMessage />
+                                     </FormItem>
+                                   )}
+                                   />
                   {error && (
                     <p className="text-sm text-destructive text-center pt-2">{error}</p>
                   )}

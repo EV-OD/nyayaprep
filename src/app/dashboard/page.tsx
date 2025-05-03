@@ -39,7 +39,7 @@ import { MyQuestionsCard } from '@/components/dashboard/MyQuestionsCard';
 import { SubscriptionSkeleton, MyQuestionsSkeleton, AnswerHistorySkeleton, PerformanceAnalyticsSkeleton } from '@/components/dashboard/skeletons'; // Import skeletons
 
 // Keep subscription details and WhatsApp number here as they are config-like
-const WHATSAPP_NUMBER = '+97798XXXXXXXX'; // Placeholder number
+const WHATSAPP_NUMBER = '+977 986-0249284'; // Placeholder number
 
 const subscriptionDetails: Record<SubscriptionPlan, { name: string; features: { text: string; included: boolean }[]; colorClass: string; price: string, askLimit: number, quizLimit: number | Infinity }> = {
     free: {

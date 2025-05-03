@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, LogIn } from 'lucide-react';
+import { Eye, EyeOff, Loader2, LogIn } from 'lucide-react';
 import { auth } from '@/lib/firebase/config';
 import { signInWithEmailAndPassword, AuthError } from 'firebase/auth';
 import { getUserProfile, handleSubscriptionExpiry } from '@/lib/firebase/firestore'; // Import Firestore function to check role and handle expiry
@@ -34,6 +34,7 @@ function LoginFormComponent() {
   const router = useRouter();
   const searchParams = useSearchParams(); // Get search params directly
   const { toast } = useToast();
+  const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(formSchema),
@@ -149,20 +150,45 @@ function LoginFormComponent() {
                         <FormMessage />
                       </FormItem>
                     )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="Enter password" {...field} disabled={isLoading} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                              />
+                              <FormField
+                              control={form.control}
+                              name="password"
+                              render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Password</FormLabel>
+                                <FormControl>
+                                   <div className="relative">
+                                   <Input
+                                     type={showPassword ? 'text' : 'password'}
+                                     placeholder="Enter password"
+                                     {...field}
+                                     disabled={isLoading}
+                                     className="pr-10" // Add padding to prevent text overlap
+                                   />
+                                   <Button
+                                     type="button"
+                                     variant="ghost"
+                                     size="sm"
+                                     className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                     onClick={() => setShowPassword((prev) => !prev)}
+                                     disabled={isLoading}
+                                   >
+                                     {showPassword ? (
+                                     <EyeOff className="h-4 w-4" aria-hidden="true" />
+                                     ) : (
+                                     <Eye className="h-4 w-4" aria-hidden="true" />
+                                     )}
+                                     <span className="sr-only">
+                                     {showPassword ? 'Hide password' : 'Show password'}
+                                     </span>
+                                   </Button>
+                                   </div>
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                              )}
+                              />
                   {error && (
                     <p className="text-sm font-medium text-destructive text-center pt-2">{error}</p>
                   )}
