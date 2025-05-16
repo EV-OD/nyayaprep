@@ -20,6 +20,8 @@
 # production
 /build
 
+filter.py
+
 # misc
 .DS_Store
 *.pem
